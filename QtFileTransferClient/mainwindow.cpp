@@ -32,7 +32,6 @@ void MainWindow::testSlot()
 	sock->write((char*)&msg, sizeof(msg));
 
 	connect(sock, SIGNAL(readyRead()), this, SLOT(reply()));
-	connect(ui->tvFileList, SIGNAL())
 
 }
 void MainWindow::reply()
