@@ -1,6 +1,7 @@
 #include "fileinfo.h"
 #include <QDataStream>
 #include <QDebug>
+#include <QCryptographicHash>
 
 FileInfo::FileInfo():
 	m_id(0), m_size(0), m_isDir(false), m_parentId(-1)
@@ -62,9 +63,9 @@ void FileInfo::setParentId(int newParentId)
 	m_parentId = newParentId;
 }
 
-void FileInfo::setName(QString *name)
+void FileInfo::setName(const QString &name)
 {
-	m_name = *name;
+	m_name = name;
 }
 
 QString FileInfo::getName() const
@@ -72,9 +73,16 @@ QString FileInfo::getName() const
 	return m_name;
 }
 
-void FileInfo::setPath(QString *path)
+
+QByteArray FileInfo::getHash()
 {
-	m_path = *path;
+	return m_sha1_id;
+}
+
+void FileInfo::setPath(const QString &path)
+{
+	m_path = path;
+	m_sha1_id = QCryptographicHash::hash(m_path.toAscii(), QCryptographicHash::Sha1);
 }
 
 QString FileInfo::getPath() const
@@ -82,6 +90,11 @@ QString FileInfo::getPath() const
 	return m_path;
 }
 
+
+QList<FileInfo*> FileInfo::getChildList()
+{
+	return this->childItems;
+}
 
 QByteArray FileInfo::getByteArray() const
 {
@@ -91,6 +104,7 @@ QByteArray FileInfo::getByteArray() const
 	array.append((char*)&m_size, sizeof(m_size));
 	array.append((char*)&m_isDir, sizeof(m_isDir));
 	array.append((char*)&m_parentId, sizeof(m_parentId));
+	array.append(m_sha1_id);
 	array.append(m_name.toAscii());
 	array.append('\0');
 	int size = array.size();
@@ -113,6 +127,10 @@ bool FileInfo::setFromByteArray(char *buff)
 
 	memcpy((char*)&m_parentId, &buff[pos], sizeof(m_parentId));
 	pos+=sizeof(m_parentId);
+
+	//MAGIC
+	m_sha1_id.append(&buff[pos], 20);
+	pos+=20;
 
 	m_name = QString(&buff[pos]);
 	return 0;
@@ -183,6 +201,9 @@ FileInfo *FileInfo::parent()
 }
 
 
+
+int FileInfo::m_nextID = 0;
+
 int FileInfo::indexOfByID(int id)
 {
 	for(int i = 0; i< childItems.count(); i++)
@@ -191,4 +212,15 @@ int FileInfo::indexOfByID(int id)
 			return i;
 	}
 	return -1;
+}
+
+int FileInfo::nextID()
+{
+	m_nextID++;
+	return  m_nextID;
+}
+
+void FileInfo::resetID()
+{
+	m_nextID = 0;
 }

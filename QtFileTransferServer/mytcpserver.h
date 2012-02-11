@@ -7,7 +7,7 @@ class MyTcpServer : public QTcpServer
 {
 	Q_OBJECT
 public:
-	explicit MyTcpServer(QObject *parent = 0);
+	explicit MyTcpServer(int port, QObject *parent = 0);
 	void startServer();
 	
 signals:
@@ -17,6 +17,9 @@ public slots:
 
 protected:
 	void incomingConnection(int handle);
+
+private:
+	int portNumber;
 	
 };
 

@@ -7,6 +7,8 @@
 #include "mytcpserver.h"
 #include "../fileinfo.h"
 #include <QList>
+#include <QSettings>
+#include "dirtreemodel.h"
 
 namespace Ui {
 class MainWindow;
@@ -20,13 +22,19 @@ public:
     explicit MainWindow(QWidget *parent = 0);
     ~MainWindow();
 
+	void closeEvent(QCloseEvent *event);
+
 public slots:
 	void newConnection(int socketDescriptor);
+	void buttonTest();
     
 private:
     Ui::MainWindow *ui;
 	MyTcpServer *server;
-	QList<FileInfo>  *m_file_list;
+
+	DirTreeModel *model;
+
+	QSettings *settings;
 };
 
 #endif // MAINWINDOW_H

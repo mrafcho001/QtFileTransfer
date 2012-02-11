@@ -75,16 +75,6 @@
          </layout>
         </item>
         <item>
-         <widget class="QTreeView" name="tvFileList">
-          <property name="uniformRowHeights">
-           <bool>true</bool>
-          </property>
-          <property name="allColumnsShowFocus">
-           <bool>true</bool>
-          </property>
-         </widget>
-        </item>
-        <item>
          <layout class="QHBoxLayout" name="horizontalLayout_2">
           <item>
            <widget class="QLabel" name="label_2">
@@ -113,6 +103,16 @@
            </widget>
           </item>
          </layout>
+        </item>
+        <item>
+         <widget class="QTreeView" name="tvFileList">
+          <property name="uniformRowHeights">
+           <bool>true</bool>
+          </property>
+          <property name="allColumnsShowFocus">
+           <bool>true</bool>
+          </property>
+         </widget>
         </item>
         <item>
          <widget class="QPushButton" name="pbDownloadSelected">

@@ -3,6 +3,7 @@
 #include <QString>
 #include <QByteArray>
 #include <QList>
+#include <QUuid>
 
 class FileInfo
 {
@@ -23,17 +24,19 @@ public:
 	int getParentId() const;
 	void setParentId(int newParentId);
 
-	void setName(QString *name);
+	void setName(const QString &name);
 	QString getName() const;
 
+	QByteArray getHash();
 
 
 	QByteArray getByteArray() const;
 	bool setFromByteArray(char *buff);
 
 	//Server side functions
-	void setPath(QString *path);
+	void setPath(const QString &path);
 	QString getPath() const;
+	QList<FileInfo*> getChildList();
 
 	//Tree Struct management
 	FileInfo* child(unsigned int index);
@@ -49,7 +52,12 @@ public:
 
 	FileInfo *parent();
 
+
+	//Static members for ID management
 	int indexOfByID(int id);
+
+	static int nextID();
+	static void resetID();
 
 private:
 
@@ -58,6 +66,7 @@ private:
 	qint64 m_size;
 	int m_isDir;
 	int m_parentId;
+	QByteArray m_sha1_id;
 	QString m_name;
 
 	//Server-only
@@ -66,6 +75,9 @@ private:
 	//Tree Struct data keeping
 	QList<FileInfo*> childItems;
 	FileInfo* parentItem;
+
+	//Static ID keeping
+	static int m_nextID;	//Next ID will be 1, 0 is reserved
 };
 
 #endif // FILEINFO_H

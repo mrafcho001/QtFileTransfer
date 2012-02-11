@@ -23,7 +23,7 @@ void MainWindow::testSlot()
 	qDebug() << "Test Slot";
 
 	sock = new QTcpSocket(this);
-	sock->connectToHost(QHostAddress::LocalHost, SERVER_LISTEN_PORT);
+	sock->connectToHost(QHostAddress::LocalHost, DEFAULT_SERVER_LISTEN_PORT);
 
 	qDebug() << "State: " << sock->state();
 	connControlMsg msg;

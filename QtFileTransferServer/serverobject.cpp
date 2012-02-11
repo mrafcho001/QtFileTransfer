@@ -63,12 +63,7 @@ void ServerObject::bytesWritten(qint64 bytes)
 	if(m_currentMode == SENDING_LIST)
 	{
 		m_items_sent++;
-		if((unsigned int)m_fileList->count() == m_items_sent)
-		{
-			qDebug() << "All file items sent... closing connection";
-			m_socket->close();
-		}
-		else
+		if(m_items_sent < (unsigned int)m_fileList->count() )
 		{
 			qDebug() << "Sending liste item number " << m_items_sent;
 			m_socket->write((*m_fileList)[m_items_sent].getByteArray());

@@ -14,10 +14,12 @@ SOURCES += main.cpp\
         mainwindow.cpp \
     serverobject.cpp \
     mytcpserver.cpp \
-    ../fileinfo.cpp
+    ../fileinfo.cpp \
+    dirtreemodel.cpp
 
 HEADERS  += mainwindow.h \
     serverobject.h \
-    mytcpserver.h
+    mytcpserver.h \
+    dirtreemodel.h
 
 FORMS    += mainwindow.ui

@@ -1,14 +1,14 @@
 #include "mytcpserver.h"
 #include "../sharedstructures.h"
 
-MyTcpServer::MyTcpServer(QObject *parent) :
-	QTcpServer(parent)
+MyTcpServer::MyTcpServer(int port, QObject *parent) :
+	QTcpServer(parent), portNumber(port)
 {
 }
 
 void MyTcpServer::startServer()
 {
-	if(!this->listen(QHostAddress::Any, SERVER_LISTEN_PORT))
+	if(!this->listen(QHostAddress::Any, portNumber))
 	{
 		qDebug() << "Error creating listening server";
 	}

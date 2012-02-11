@@ -157,10 +157,7 @@ bool FileListItemModel::setData(const QModelIndex &index, const QVariant &value,
 		switch(index.column())
 		{
 		case 0:
-		{
-			QString tmp = value.toString();
-			item->setName(&tmp);
-		}
+			item->setName(value.toString());
 			break;
 		case 1:
 			item->setSize(value.toLongLong());
@@ -211,8 +208,7 @@ bool FileListItemModel::appendRowWithData(FileInfo & fileInfo, QModelIndex &pare
 	beginInsertRows(par, row, row);
 	FileInfo *file2 = new FileInfo();
 	file2->setId(fileInfo.getId());
-	QString name = fileInfo.getName();
-	file2->setName(&name);
+	file2->setName(fileInfo.getName());
 	file2->setSize(fileInfo.getSize());
 
 	parentItem->appendChild(file2);

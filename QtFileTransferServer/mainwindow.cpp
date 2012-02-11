@@ -11,22 +11,56 @@ MainWindow::MainWindow(QWidget *parent) :
 {
     ui->setupUi(this);
 
-	this->server = new MyTcpServer(this);
+
+	settings = new QSettings(tr("Martin Bakiev"), tr("QtFileTransfer"), this);
+
+	model = new DirTreeModel(this);
+	ui->tvDirList->setModel(model);
+	ui->tvDirList->header()->setResizeMode(QHeaderView::ResizeToContents);
+
+	int size = settings->beginReadArray("shared_directories");
+	for(int i = 0; i < size; i++)
+	{
+		settings->setArrayIndex(i);
+		model->addDirectory(settings->value("dir").toString());
+	}
+	settings->endArray();
+
+
+	int portNumber = settings->value("server/portNumber", DEFAULT_SERVER_LISTEN_PORT).toInt();
+
+	this->server = new MyTcpServer(portNumber, this);
 	this->server->startServer();
 
 	connect(this->server,SIGNAL(newConnectionDescriptor(int)), this, SLOT(newConnection(int)));
+	connect(ui->pbToggleServer, SIGNAL(clicked()), this, SLOT(buttonTest()));
+}
 
-	m_file_list = new QList<FileInfo>();
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+	Q_UNUSED(event);
 
-	m_file_list->append(FileInfo(3, 64, false, 0, tr("Item 1")));
-	m_file_list->append(FileInfo(4, 64, false, 0, tr("Item 2")));
-	m_file_list->append(FileInfo(5, 64, false, 0, tr("Item 3")));
-	m_file_list->append(FileInfo(6, 64, false, 0, tr("Item 4")));
-	m_file_list->append(FileInfo(7, 64, false, 0, tr("Item 5")));
-	m_file_list->append(FileInfo(8, 64, false, 4, tr("Item 6")));
-	m_file_list->append(FileInfo(9, 64, false, 4, tr("Item 7")));
-	m_file_list->append(FileInfo(10, 64, false, 4, tr("Item 8")));
-	m_file_list->append(FileInfo(11, 64, false, 0, tr("Item 9")));
+	qDebug() << "Close event received";
+	server->close();
+
+	settings->beginWriteArray("shared_directories");
+	QList<FileInfo*> sharedDirList = model->getSharedDirList();
+	for(int i = 0; i < sharedDirList.count(); i++)
+	{
+		settings->setArrayIndex(i);
+		settings->setValue("dir", sharedDirList.at(i)->getPath());
+	}
+	settings->endArray();
+
+
+	delete server;
+	delete settings;
+
+}
+void MainWindow::buttonTest()
+{
+	QString path("/home/mrafcho001/tmp/qtransfer_test");
+	model->addDirectory(path);
 }
 
 void MainWindow::newConnection(int socketDescriptor)
@@ -36,7 +70,8 @@ void MainWindow::newConnection(int socketDescriptor)
 	qDebug() << "New Connection: " << socketDescriptor;
 	QThread *thread = new QThread(this);
 
-	ServerObject *serverObject = new ServerObject(socketDescriptor, m_file_list);
+
+	ServerObject *serverObject ;//= new ServerObject(socketDescriptor, );
 
 	serverObject->moveToThread(thread);
 	connect(thread, SIGNAL(started()), serverObject, SLOT(handleConnection()));
@@ -44,6 +79,7 @@ void MainWindow::newConnection(int socketDescriptor)
 
 	thread->start();
 }
+
 
 MainWindow::~MainWindow()
 {
