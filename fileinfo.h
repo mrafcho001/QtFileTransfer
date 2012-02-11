@@ -9,6 +9,7 @@ class FileInfo
 {
 public:
 	FileInfo();
+	FileInfo(const FileInfo &file);
 	FileInfo(int id, qint64 size, int isDir, int parentId, QString name);
 	~FileInfo();
 

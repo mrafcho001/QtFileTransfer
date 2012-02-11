@@ -26,13 +26,17 @@ public:
 
 public slots:
 	void newConnection(int socketDescriptor);
-	void buttonTest();
+
+	void removeSelected();
+	void addNewDirectory();
     
 private:
     Ui::MainWindow *ui;
 	MyTcpServer *server;
 
 	DirTreeModel *model;
+
+	QList<FileInfo*> *m_serializedList;
 
 	QSettings *settings;
 };

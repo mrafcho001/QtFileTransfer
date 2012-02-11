@@ -22,4 +22,5 @@ HEADERS  += mainwindow.h \
     mytcpserver.h \
     dirtreemodel.h
 
-FORMS    += mainwindow.ui
+FORMS    += \
+    mainwindow.ui

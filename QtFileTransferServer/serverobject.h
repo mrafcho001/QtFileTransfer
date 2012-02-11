@@ -11,7 +11,7 @@ class ServerObject : public QObject
 {
 	Q_OBJECT
 public:
-	explicit ServerObject(int socketDescriptor, QList<FileInfo> *file_list, QObject *parent = 0);
+	explicit ServerObject(int socketDescriptor, QList<FileInfo*> *file_list, QObject *parent = 0);
 	
 signals:
 	void error(QTcpSocket::SocketError socketError);
@@ -40,11 +40,14 @@ private:
 	int m_socketDescriptor;
 	QTcpSocket *m_socket;
 
-	QList<FileInfo> *m_fileList;
+	QList<FileInfo*> *m_fileList;
 	unsigned int m_items_sent;
+
+
 	QFile *m_file;
 	qint64 m_file_size;
 	qint64 m_bytes_sent;
+	FileInfo *send_file;
 	
 };
 

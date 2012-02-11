@@ -4,6 +4,7 @@
 #include "../sharedstructures.h"
 #include <QDebug>
 #include <QThread>
+#include <QFileDialog>
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -33,7 +34,11 @@ MainWindow::MainWindow(QWidget *parent) :
 	this->server->startServer();
 
 	connect(this->server,SIGNAL(newConnectionDescriptor(int)), this, SLOT(newConnection(int)));
-	connect(ui->pbToggleServer, SIGNAL(clicked()), this, SLOT(buttonTest()));
+	connect(ui->pbRemoveDir, SIGNAL(clicked()), this, SLOT(removeSelected()));
+	connect(ui->pbAddDir, SIGNAL(clicked()), this, SLOT(addNewDirectory()));
+
+	//Keep serializedList up to date
+	m_serializedList = new QList<FileInfo*>(model->getSerializedList());
 }
 
 void MainWindow::closeEvent(QCloseEvent *event)
@@ -57,10 +62,40 @@ void MainWindow::closeEvent(QCloseEvent *event)
 	delete settings;
 
 }
-void MainWindow::buttonTest()
+
+void MainWindow::removeSelected()
 {
-	QString path("/home/mrafcho001/tmp/qtransfer_test");
-	model->addDirectory(path);
+	QModelIndex index = ui->tvDirList->currentIndex();
+
+	qDebug() << "Trying to remove";
+	if(model->removeRows(0, 0, index))
+		*m_serializedList = model->getSerializedList();
+}
+
+void MainWindow::addNewDirectory()
+{
+	QFileDialog dialog(this);
+
+	dialog.setFileMode(QFileDialog::Directory);
+	dialog.setOption(QFileDialog::ShowDirsOnly, false);
+
+	if(settings->contains("server/last_added_dir"))
+		dialog.setDirectory(settings->value("server/last_added_dir").toString());
+
+	QStringList selectedDir;
+	if(dialog.exec())
+		selectedDir = dialog.selectedFiles();
+
+	for(int i = 0; i < selectedDir.count(); i++)
+	{
+		model->addDirectory(selectedDir.at(0));
+	}
+
+	if(selectedDir.count()>0)
+	{
+		settings->setValue("server/last_added_dir", selectedDir.value(0));
+		*m_serializedList = model->getSerializedList();
+	}
 }
 
 void MainWindow::newConnection(int socketDescriptor)
@@ -70,8 +105,7 @@ void MainWindow::newConnection(int socketDescriptor)
 	qDebug() << "New Connection: " << socketDescriptor;
 	QThread *thread = new QThread(this);
 
-
-	ServerObject *serverObject ;//= new ServerObject(socketDescriptor, );
+	ServerObject *serverObject = new ServerObject(socketDescriptor, m_serializedList);
 
 	serverObject->moveToThread(thread);
 	connect(thread, SIGNAL(started()), serverObject, SLOT(handleConnection()));

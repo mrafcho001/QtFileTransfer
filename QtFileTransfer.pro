@@ -2,8 +2,8 @@ TEMPLATE = \
 	subdirs
 
 SUBDIRS += \
-	QtFileTransferClient \
-    QtFileTransferServer
+	QtFileTransferServer \
+	QtFileTransferClient
 
 SOURCES = sharedstructures.cpp \
 	fileinfo.cpp

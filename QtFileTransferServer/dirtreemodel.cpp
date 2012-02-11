@@ -156,6 +156,30 @@ QVariant DirTreeModel::headerData(int section, Qt::Orientation orientation, int 
 	return QVariant();
 }
 
+bool DirTreeModel::removeRows(int row, int count, const QModelIndex &parent)
+{
+	(void)row;
+	(void)count;
+
+	if(!parent.isValid())
+		return false;
+
+	FileInfo *childItem = static_cast<FileInfo*>(parent.internalPointer());
+	qDebug() << "Valid: " << childItem->getName();
+
+	if(childItem->getParentId() == 0)
+	{
+		qDebug () << "Top Level Entry";
+		int index = childItem->childIndex();
+		beginRemoveRows(parent.parent(), index, index);
+		removeFromHashRecursive(rootItem->child(index));
+		rootItem->removeChild(index, 1);
+		endRemoveRows();
+	}
+
+	return true;
+}
+
 Qt::ItemFlags DirTreeModel::flags(const QModelIndex &index) const
 {
 	if (!index.isValid())
@@ -199,7 +223,7 @@ bool DirTreeModel::addDirectory(const QString &directory, FileInfo *parentItem, 
 	dirInfo->setParentId(parentItem->getId());
 	dirInfo->setId(FileInfo::nextID());
 
-	beginInsertRows(QModelIndex(), parentItem->childCount(), parentItem->childCount());
+	beginInsertRows(parent, parentItem->childCount(), parentItem->childCount());
 	parentItem->appendChild(dirInfo);
 	hash.insert(dirInfo->getHash(), dirInfo);
 	endInsertRows();
@@ -254,4 +278,19 @@ QList<FileInfo*> DirTreeModel::getSerializedList(FileInfo* root)
 			serializedList.append(getSerializedList(childList.value(i)));
 	}
 	return serializedList;
+}
+
+
+void DirTreeModel::removeFromHashRecursive(FileInfo* item)
+{
+	if(item == NULL)
+		return;
+
+	for(int i = 0; i < item->childCount(); i++)
+	{
+		if(item->child(i)->isDir())
+			removeFromHashRecursive(item->child(i));
+		hash.remove(item->getHash());
+	}
+	hash.remove(item->getHash());
 }

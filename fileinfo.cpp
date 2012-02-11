@@ -9,6 +9,20 @@ FileInfo::FileInfo():
 	parentItem = NULL;
 }
 
+FileInfo::FileInfo(const FileInfo &file)
+{
+	this->m_id = file.m_id;
+	this->m_isDir = file.m_isDir;
+	this->m_name = file.m_name;
+	this->m_parentId = file.m_parentId;
+	this->m_path = file.m_path;
+	this->m_sha1_id = file.m_sha1_id;
+	this->m_size = file.m_size;
+
+	this->childItems = file.childItems;
+	this->parentItem = file.parentItem;
+}
+
 FileInfo::FileInfo(int id, qint64 size, int isDir, int parentId, QString name) :
 	m_id(id), m_size(size), m_isDir(isDir), m_parentId(parentId), m_name(name)
 {

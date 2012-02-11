@@ -1,5 +1,6 @@
 #include "filelistitemmodel.h"
 #include <QDebug>
+#include <QStack>
 
 FileListItemModel::FileListItemModel(QObject *parent) :
 	QAbstractItemModel(parent)
@@ -56,7 +57,7 @@ int FileListItemModel::rowCount(const QModelIndex &parent) const
 
 int FileListItemModel::columnCount(const QModelIndex &parent) const
 {
-	return 3;
+	return 4;
 }
 
 QModelIndex FileListItemModel::parent(const QModelIndex &index) const
@@ -89,6 +90,8 @@ QVariant FileListItemModel::data(const QModelIndex &index, int role) const
 		return item->getSize();
 	else if(index.column() == 2)
 		return item->getId();
+	else if(index.column() == 3)
+		return item->getParentId();
 
 	return QVariant();
 }
@@ -110,6 +113,9 @@ QVariant FileListItemModel::headerData(int section, Qt::Orientation orientation,
 
 		case 2:
 			return tr("ID");
+
+		case 3:
+			return tr("Par ID");
 
 		default:
 			return QVariant();
@@ -165,6 +171,8 @@ bool FileListItemModel::setData(const QModelIndex &index, const QVariant &value,
 		case 2:
 			item->setId(value.toInt());
 			break;
+		case 3:
+			item->setParentId(value.toInt());
 		default:
 			return false;
 		}
@@ -215,6 +223,48 @@ bool FileListItemModel::appendRowWithData(FileInfo & fileInfo, QModelIndex &pare
 	endInsertRows();
 
 	qDebug() << "Root now has " << rootItem->childCount() << "children";
+	return true;
+}
+
+
+bool FileListItemModel::insertRowWithData(FileInfo *fileInfo)
+{
+	if(fileInfo->getParentId() == 0)
+	{
+		beginInsertRows(QModelIndex(), rootItem->childCount(), rootItem->childCount());
+		rootItem->appendChild(fileInfo);
+		hash.insert(fileInfo->getId(), fileInfo);
+		endInsertRows();
+		return true;
+	}
+
+	QStack<FileInfo*> parentStack;
+
+	FileInfo *iter = fileInfo;
+	while(iter->getParentId() != 0)
+	{
+		if(!hash.contains(iter->getParentId()))
+			return false;
+		iter = hash.value(iter->getParentId());
+		parentStack.push(iter);
+	}
+
+	//parentStack.pop();
+
+	QModelIndex modelIndex;// = index(iter->childIndex(), 0, QModelIndex());
+
+	while(parentStack.count() > 0)
+	{
+		iter = parentStack.pop();
+		int iter_index = iter->childIndex();
+		modelIndex = index(iter_index, 0, modelIndex);
+	}
+
+	beginInsertRows(modelIndex, iter->childCount(), iter->childCount());
+	iter->appendChild(fileInfo);
+	hash.insert(fileInfo->getId(), fileInfo);
+	endInsertRows();
+
 	return true;
 }
 

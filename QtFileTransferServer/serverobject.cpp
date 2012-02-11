@@ -2,7 +2,7 @@
 #include "../sharedstructures.h"
 #include <QDebug>
 
-ServerObject::ServerObject(int sockDescriptor, QList<FileInfo> *file_list, QObject *parent) :
+ServerObject::ServerObject(int sockDescriptor, QList<FileInfo*> *file_list, QObject *parent) :
 	QObject(parent), m_socketDescriptor(sockDescriptor), m_socket(NULL), m_file(NULL)
 {
 	m_fileList = file_list;
@@ -32,7 +32,7 @@ void ServerObject::readReady()
 
 	if(m_socket->bytesAvailable() != sizeof(msg))
 	{
-		qDebug() << "Data is probably not a proper connControlMsg. Closing Connection.";
+		qCritical() << "Data is probably not a proper connControlMsg. Closing Connection.";
 		m_socket->close();
 	}
 
@@ -45,12 +45,29 @@ void ServerObject::readReady()
 		m_currentMode = SENDING_LIST;
 		m_items_sent = 0;
 		if(m_fileList != NULL && m_fileList->count() > 0)
-			m_socket->write((*m_fileList)[0].getByteArray());
+			m_socket->write((*m_fileList)[0]->getByteArray());
 		break;
 	case CONN_CONTROL_REQUEST_FILE_DOWNLOAD:
+	{
 		m_currentMode = SENDING_FILE;
-		m_socket->write(QByteArray("File request acknowledged", 26));
-		m_file_size = 26;
+
+		QByteArray req_hash;
+		//MORE MAGIC
+		req_hash.append(msg.sha1_id, 20);
+		for(int i = 0; i < m_fileList->count(); i++)
+		{
+			if(m_fileList->value(i)->getHash() == req_hash)
+			{
+				send_file = m_fileList->value(i);
+				break;
+			}
+		}
+
+		m_file = new QFile(send_file->getPath());
+		m_file->open(QIODevice::ReadOnly);
+
+		m_socket->write(m_file->read(FILE_CHUNK_SIZE));
+	}
 		break;
 	case CONN_CONTROL_FILE_COMPLETE:
 		m_socket->close();
@@ -65,25 +82,22 @@ void ServerObject::bytesWritten(qint64 bytes)
 		m_items_sent++;
 		if(m_items_sent < (unsigned int)m_fileList->count() )
 		{
-			qDebug() << "Sending liste item number " << m_items_sent;
-			m_socket->write((*m_fileList)[m_items_sent].getByteArray());
+			qDebug() << "Sending " << m_fileList->value(m_items_sent)->getName()
+					 << "; id: " << m_fileList->at(m_items_sent)->getSize()
+					 << "; parentID: " << m_fileList->at(m_items_sent)->getParentId();
+			m_socket->write((*m_fileList)[m_items_sent]->getByteArray());
 		}
+		else
+			m_socket->close();
 	}
 	else
 	{
 		m_bytes_sent += bytes;
-		qDebug() << "bytes: " << bytes;
-		qDebug() << "m_bytes_sent: " << m_bytes_sent;
-		qDebug() << "m_file_size: " << m_file_size;
-
-		if(m_file_size <= m_bytes_sent)
-		{
-			//REMOVE ME
+		if(m_bytes_sent == send_file->getSize())
 			m_socket->close();
-		}
 		else
 		{
-			m_socket->write("File List request acknowledged", 31);
+			m_socket->write(m_file->read(FILE_CHUNK_SIZE));
 		}
 	}
 }

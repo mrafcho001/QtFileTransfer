@@ -24,16 +24,21 @@ public:
 	bool setData(const QModelIndex &index, const QVariant &value, int role);
 	QVariant headerData(int section, Qt::Orientation orientation, int role) const;
 
+	bool removeRows(int row, int count, const QModelIndex &parent);
+
 	Qt::ItemFlags flags(const QModelIndex &index) const;
 
 	bool addDirectory(const QString &directory);
 	bool addDirectory(const QString &directory, FileInfo *parentItem, QModelIndex &parent);
 	bool addDirectory(const QString &directory, FileInfo *parentItem, const QModelIndex &parent, bool addEmpty);
+
 	QList<FileInfo*> getSharedDirList();
 
 	QList<FileInfo*> getSerializedList(FileInfo* root = NULL);
 
 private:
+
+	void removeFromHashRecursive(FileInfo* item);
 
 	FileInfo *getItem(const QModelIndex &index) const;
 	FileInfo *rootItem;

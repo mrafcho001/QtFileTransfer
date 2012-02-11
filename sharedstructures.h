@@ -14,7 +14,7 @@
 struct connControlMsg
 {
 	unsigned int message;
-	unsigned int file_id;
+	char sha1_id[20];
 };
 
 struct file

@@ -4,6 +4,7 @@
 #include <QAbstractItemModel>
 #include <QList>
 #include "../fileinfo.h"
+#include <QHash>
 
 class FileListItemModel : public QAbstractItemModel
 {
@@ -28,10 +29,14 @@ public:
 	bool appendRowWithData(FileInfo & fileInfo, QModelIndex &parent);
 	QList<FileInfo*>* getList();
 
+	bool insertRowWithData(FileInfo *fileInfo);
+
 private:
 
 	FileInfo *getItem(const QModelIndex &index) const;
 	FileInfo *rootItem;
+	// ID to pointer hash map
+	QHash<int, FileInfo*> hash;
     
 };
 

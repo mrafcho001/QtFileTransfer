@@ -5,6 +5,7 @@
 #include "filelistitemmodel.h"
 
 #include <QTcpSocket>
+#include <QFile>
 
 namespace Ui {
 class MainWindow;
@@ -19,8 +20,12 @@ public:
     ~MainWindow();
 
 public slots:
-		void testSlot();
-		void reply();
+	void downloadFileList();
+	void onListReceiveData();
+	void onFileReceiveData();
+	void requestFileDownload();
+
+	void sock_disconn();
     
 private:
     Ui::MainWindow *ui;
@@ -28,6 +33,10 @@ private:
 
 
 	QTcpSocket *sock;
+
+	QFile *out_file;
+	FileInfo *rec_file;
+	qint64 rec_bytes;
 };
 
 #endif // MAINWINDOW_H
