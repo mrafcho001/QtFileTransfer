@@ -137,7 +137,7 @@ void MainWindow::requestFileDownload()
 	if(!file)
 		return;
 
-	DownloadClient *client = new DownloadClient(file, this);
+	DownloadClient *client = new DownloadClient(file);
 
 	if(!getServerAddress(&serverAddress))
 		return;
