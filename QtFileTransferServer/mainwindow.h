@@ -9,10 +9,36 @@
 #include <QList>
 #include <QSettings>
 #include "dirtreemodel.h"
+#include "serverobject.h"
+#include <QQueue>
+#include <QVBoxLayout>
+#include <QLabel>
 
 namespace Ui {
 class MainWindow;
 }
+
+
+//Forward declarations
+class QProgressBar;
+
+class ProgressBarBundleServer
+{
+public:
+	ProgressBarBundleServer();
+	ProgressBarBundleServer(FileInfo* file, QString &ip, ServerObject *serverObj, QWidget *parent);
+	~ProgressBarBundleServer();
+
+	void insertIntoLayout(int reverse_index, QVBoxLayout *layout);
+	void removeFromLayout(QVBoxLayout *layout);
+	void update(qint64 value);
+
+private:
+	QProgressBar *bar;
+	QLabel *label;
+	FileInfo *file;
+	ServerObject *server;
+};
 
 class MainWindow : public QMainWindow
 {
@@ -29,6 +55,11 @@ public slots:
 
 	void removeSelected();
 	void addNewDirectory();
+
+	void fileTransferInitiated(FileInfo *file, ServerObject *obj, QString peer_ip);
+	void fileTransferUpdate(qint64 bytes, ServerObject *obj);
+	void fileTransferCompleted(ServerObject *obj);
+	void removePB();
     
 private:
     Ui::MainWindow *ui;
@@ -39,6 +70,10 @@ private:
 	QList<FileInfo*> *m_serializedList;
 
 	QSettings *settings;
+
+	QHash<ServerObject*,ProgressBarBundleServer*> progressBars;
+	QQueue<ServerObject*> toRemove;
+
 };
 
 #endif // MAINWINDOW_H

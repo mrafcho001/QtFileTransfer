@@ -4,6 +4,60 @@
 #include "../fileinfo.h"
 #include <QDebug>
 #include <QHostAddress>
+#include <QProgressBar>
+#include <QLabel>
+#include <QVBoxLayout>
+#include <QMessageBox>
+#include <QSettings>
+#include <QThread>
+#include <QFileDialog>
+#include <QTimer>
+
+ProgressBarBundleClient::ProgressBarBundleClient()
+{
+	bar = NULL;
+	label = NULL;
+	file = NULL;
+	client = NULL;
+}
+
+ProgressBarBundleClient::ProgressBarBundleClient(FileInfo* file, DownloadClient *clientObj,
+												 QWidget *parent)
+{
+	this->file = file;
+	client = clientObj;
+	label = new QLabel(file->getName(), parent);
+	bar = new QProgressBar(parent);
+	bar->setMaximum(file->getSize());
+	bar->setValue(0);
+	bar->setTextVisible(true);
+}
+
+ProgressBarBundleClient::~ProgressBarBundleClient()
+{
+	if(bar) delete bar;
+	if(label) delete label;
+}
+
+void ProgressBarBundleClient::insertIntoLayout(int reverse_index, QVBoxLayout *layout)
+{
+	layout->insertWidget(layout->count()-reverse_index, label);
+	layout->insertWidget(layout->count()-reverse_index, bar);
+}
+
+void ProgressBarBundleClient::removeFromLayout(QVBoxLayout *layout)
+{
+	layout->removeWidget(label);
+	layout->removeWidget(bar);
+
+	delete bar; bar = NULL;
+	delete label; label = NULL;
+}
+
+void ProgressBarBundleClient::update(qint64 value)
+{
+	bar->setValue(value);
+}
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -13,107 +67,199 @@ MainWindow::MainWindow(QWidget *parent) :
 	connect(ui->pbGetFiles, SIGNAL(clicked()), this, SLOT(downloadFileList()));
 	connect(ui->pbDownloadSelected, SIGNAL(clicked()), this, SLOT(requestFileDownload()));
 
+	QString Octet = "(?:[0-1]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])";
+	ui->leServerIP->setValidator(new QRegExpValidator(QRegExp("^" + Octet
+															  + "\\." + Octet
+															  + "\\." + Octet
+															  + "\\." + Octet + "$"), this));
+
+
+	settings = new QSettings(tr("Martin Bakiev"), tr("QtFileTransfer"), this);
+	if(settings->contains("client/ip"))
+		ui->leServerIP->setText(settings->value("client/ip").toString());
+	if(settings->contains("client/save_directory"))
+		ui->leDownloadDir->setText(settings->value("client/save_directory").toString());
+
 	tableModel = new FileListItemModel(this);
 
 	ui->tvFileList->setModel(tableModel);
 	ui->tvFileList->header()->setResizeMode(QHeaderView::ResizeToContents);
 }
 
+MainWindow::~MainWindow()
+{
+	delete settings;
+	delete ui;
+}
+
 void MainWindow::downloadFileList()
 {
-	sock = new QTcpSocket(this);
-	sock->connectToHost(QHostAddress::LocalHost, DEFAULT_SERVER_LISTEN_PORT);
+	QHostAddress serverAddress;
+	if(!getServerAddress(&serverAddress))
+		return;
 
-	qDebug() << "State: " << sock->state();
+	settings->setValue("client/ip", ui->leServerIP->text());
+
+	m_socket = new QTcpSocket(this);
+	m_socket->connectToHost(serverAddress, DEFAULT_SERVER_LISTEN_PORT);
+
+	list_ack_receieved = false;
+
 	connControlMsg msg;
-	msg.message = CONN_CONTROL_REQUEST_FILE_LIST;
+	msg.message = REQUEST_FILE_LIST;
 
-	sock->write((char*)&msg, sizeof(msg));
+	m_socket->write((char*)&msg, sizeof(msg));
 
-	connect(sock, SIGNAL(readyRead()), this, SLOT(onListReceiveData()));
-	connect(sock, SIGNAL(disconnected()), this, SLOT(sock_disconn()));
+	connect(m_socket, SIGNAL(readyRead()), this, SLOT(onListReceiveData()));
+	connect(m_socket, SIGNAL(disconnected()), this, SLOT(sock_disconn()));
 }
 
 void MainWindow::requestFileDownload()
 {
+	QHostAddress serverAddress;
+	QString downloadDir = ui->leDownloadDir->text();
+
+	if(!getServerAddress(&serverAddress))
+		return;
+	if(downloadDir.isEmpty())
+	{
+		QMessageBox::warning(this, tr("Please Select Download Location"), tr("Please select a directory to download the files to."), QMessageBox::Ok, QMessageBox::Ok);
+		return;
+	}
 
 	QModelIndex modelIndex = ui->tvFileList->currentIndex();
 
-	if(modelIndex.isValid())
-	{
-		sock = new QTcpSocket(this);
-		sock->connectToHost(QHostAddress::LocalHost, DEFAULT_SERVER_LISTEN_PORT);
+	if(!modelIndex.isValid())
+		return;
 
-		connControlMsg msg;
-		msg.message = CONN_CONTROL_REQUEST_FILE_DOWNLOAD;
-		rec_file = static_cast<FileInfo*>(modelIndex.internalPointer());
+	FileInfo *file = static_cast<FileInfo*>(modelIndex.internalPointer());
+	if(!file)
+		return;
 
-		//MORE MAGIC
-		memcpy(msg.sha1_id, rec_file->getHash().constData(), 20);
-		sock->write((char*)&msg, sizeof(msg));
+	DownloadClient *client = new DownloadClient(file, this);
 
-		out_file = new QFile(rec_file->getName());
+	if(!getServerAddress(&serverAddress))
+		return;
 
-		out_file->open(QIODevice::WriteOnly);
-		rec_bytes =0;
+	client->setServerAddress(serverAddress, DEFAULT_SERVER_LISTEN_PORT);
+	client->setSaveDirectory(downloadDir);
 
+	QThread *thread = new QThread(this);
 
-		connect(sock, SIGNAL(readyRead()), this, SLOT(onFileReceiveData()));
-		connect(sock, SIGNAL(disconnected()), this, SLOT(sock_disconn()));
-	}
+	client->moveToThread(thread);
+
+	connect(client, SIGNAL(fileTransferBeginning(FileInfo*,DownloadClient*)),
+			this, SLOT(fileTransferStarted()));
+	connect(client, SIGNAL(fileTransferUpdate(qint64,DownloadClient*)),
+			this, SLOT(fileTransferUpdated(qint64,DownloadClient*)));
+	connect(client, SIGNAL(fileTransferComplete(DownloadClient*)),
+			this, SLOT(fileTransferCompleted(DownloadClient*)));
+
+	connect(thread, SIGNAL(started()), client, SLOT(beginDownload()));
+
+	thread->start();
 }
 
 
+void MainWindow::selectNewSaveDirectory()
+{
+	QFileDialog dialog(this);
+
+	dialog.setFileMode(QFileDialog::Directory);
+	dialog.setOption(QFileDialog::ShowDirsOnly, false);
+
+	if(settings->contains("client/save_directory"))
+		dialog.setDirectory(settings->value("client/save_directory").toString());
+
+	QStringList selectedDir;
+	if(dialog.exec())
+		selectedDir = dialog.selectedFiles();
+
+	if(selectedDir.count() > 0)
+	{
+		ui->leDownloadDir->setText(selectedDir.at(0));
+		settings->setValue("client/save_directory", selectedDir.at(0));
+	}
+}
+
+void MainWindow::sock_disconn()
+{
+	disconnect(m_socket, 0,0,0);
+	m_socket->deleteLater();
+}
 void MainWindow::onListReceiveData()
 {
-	qDebug() << "onListReceiveData triggered";
+	if(!list_ack_receieved)
+	{
+		connControlMsg msg;
+
+		m_socket->read((char*)&msg, sizeof(msg));
+
+		if(msg.message == LIST_REQUEST_REJECTED)
+		{
+			m_socket->close();
+			return;
+		}
+		qDebug() << "Received ACK";
+		list_ack_receieved = true;
+	}
 
 	unsigned int size;
 
-	while(sock->bytesAvailable() > 0)
+	while(m_socket->bytesAvailable() > 0)
 	{
-		sock->read((char*)&size, sizeof(size));
+		m_socket->read((char*)&size, sizeof(size));
 
 		char *buff = new char[size];
-		sock->read(buff, size);
+		m_socket->read(buff, size);
 
 		FileInfo *fi = new FileInfo();
 
 		fi->setFromByteArray(buff);
-		qDebug() << "got item: " << fi->getName() << " of size " << fi->getSize()
-				 << " with id " << fi->getId() << "; parid: " << fi->getParentId();
 
 		this->tableModel->insertRowWithData(fi);
 		delete [] buff;
 	}
 }
 
-void MainWindow::onFileReceiveData()
+
+void MainWindow::fileTransferStarted(FileInfo* file, DownloadClient* dc)
 {
+	ProgressBarBundleClient *pbb = new ProgressBarBundleClient(file, dc, this);
 
-	qDebug() << "onFileReceiveData triggered";
+	pbb->insertIntoLayout(1, ui->vlProgressBars);
 
+	activeDownloads.insert(dc, pbb);
+}
 
-	QByteArray arr = sock->readAll();
-	out_file->write(arr);
-	rec_bytes+= arr.count();
+void MainWindow::fileTransferUpdated(qint64 bytes, DownloadClient *dc)
+{
+	if(!activeDownloads.contains(dc))
+		return;
 
-	if(rec_bytes == rec_file->getSize())
+	activeDownloads.value(dc)->update(bytes);
+}
+
+void MainWindow::fileTransferCompleted(DownloadClient *dc)
+{
+	toRemove.enqueue(dc);
+	QTimer::singleShot(10000, this, SLOT(removeProgresBar()));
+}
+
+void MainWindow::removeProgresBar()
+{
+	DownloadClient *obj = toRemove.dequeue();
+	activeDownloads.value(obj)->removeFromLayout(ui->vlProgressBars);
+	delete activeDownloads.value(obj);
+	activeDownloads.remove(obj);
+}
+
+bool MainWindow::getServerAddress(QHostAddress *addr)
+{
+	if(!addr->setAddress(ui->leServerIP->text()))
 	{
-		delete sock;
-		out_file->close();
-		delete out_file;
-		rec_file = NULL;
+		QMessageBox::warning(this, tr("Invalid Server Address"), tr("The entered server IP address is invalid, please correct it."), QMessageBox::Ok, QMessageBox::Ok);
+		return false;
 	}
-}
-
-
-void MainWindow::sock_disconn()
-{
-	qDebug() << "Sock disconnected";
-}
-
-MainWindow::~MainWindow()
-{
-    delete ui;
+	return true;
 }

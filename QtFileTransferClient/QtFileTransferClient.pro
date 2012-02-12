@@ -13,9 +13,11 @@ TEMPLATE = app
 SOURCES += main.cpp\
         mainwindow.cpp \
     ../fileinfo.cpp \
-    filelistitemmodel.cpp
+    filelistitemmodel.cpp \
+    downloadclient.cpp
 
 HEADERS  += mainwindow.h \
-    filelistitemmodel.h
+    filelistitemmodel.h \
+    downloadclient.h
 
 FORMS    += mainwindow.ui

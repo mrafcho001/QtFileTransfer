@@ -57,6 +57,7 @@ int FileListItemModel::rowCount(const QModelIndex &parent) const
 
 int FileListItemModel::columnCount(const QModelIndex &parent) const
 {
+	Q_UNUSED(parent);
 	return 4;
 }
 
@@ -198,7 +199,6 @@ bool FileListItemModel::appendRowWithData(FileInfo & fileInfo, QModelIndex &pare
 	{
 		if(parent.isValid())
 		{
-			FileInfo *p = (FileInfo*)parent.internalPointer();
 			for(int i = 0; parent.sibling(i, 0).isValid(); i++)
 			{
 				if(((const FileInfo*)parent.sibling(i, 0).internalPointer())->getId() == fileInfo.getParentId())
@@ -222,7 +222,7 @@ bool FileListItemModel::appendRowWithData(FileInfo & fileInfo, QModelIndex &pare
 	parentItem->appendChild(file2);
 	endInsertRows();
 
-	qDebug() << "Root now has " << rootItem->childCount() << "children";
+	//qDebug() << "Root now has " << rootItem->childCount() << "children";
 	return true;
 }
 

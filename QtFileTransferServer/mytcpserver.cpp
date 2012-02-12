@@ -10,7 +10,7 @@ void MyTcpServer::startServer()
 {
 	if(!this->listen(QHostAddress::Any, portNumber))
 	{
-		qDebug() << "Error creating listening server";
+		qCritical() << "Error creating listening server";
 	}
 	else
 	{

@@ -165,11 +165,11 @@ bool DirTreeModel::removeRows(int row, int count, const QModelIndex &parent)
 		return false;
 
 	FileInfo *childItem = static_cast<FileInfo*>(parent.internalPointer());
-	qDebug() << "Valid: " << childItem->getName();
+	//qDebug() << "Valid: " << childItem->getName();
 
 	if(childItem->getParentId() == 0)
 	{
-		qDebug () << "Top Level Entry";
+		//qDebug () << "Top Level Entry";
 		int index = childItem->childIndex();
 		beginRemoveRows(parent.parent(), index, index);
 		removeFromHashRecursive(rootItem->child(index));

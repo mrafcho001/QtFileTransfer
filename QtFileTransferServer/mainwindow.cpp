@@ -5,6 +5,55 @@
 #include <QDebug>
 #include <QThread>
 #include <QFileDialog>
+#include <QProgressBar>
+#include <QTimer>
+
+
+ProgressBarBundleServer::ProgressBarBundleServer()
+{
+	bar = NULL;
+	label = NULL;
+	file = NULL;
+	server = NULL;
+}
+
+ProgressBarBundleServer::ProgressBarBundleServer(FileInfo *file, QString &ip, ServerObject *serverObj, QWidget *parent)
+{
+	this->file = file;
+	server = serverObj;
+	label = new QLabel(file->getName().append(" -> ").append(ip), parent);
+	bar = new QProgressBar(parent);
+	bar->setMaximum(file->getSize());
+	bar->setValue(0);
+	bar->setTextVisible(true);
+}
+
+ProgressBarBundleServer::~ProgressBarBundleServer()
+{
+	if(bar) delete bar;
+	if(label) delete label;
+}
+
+void ProgressBarBundleServer::insertIntoLayout(int reverse_index, QVBoxLayout *layout)
+{
+	layout->insertWidget(layout->count()-reverse_index, label);
+	layout->insertWidget(layout->count()-reverse_index, bar);
+}
+
+
+void ProgressBarBundleServer::removeFromLayout(QVBoxLayout *layout)
+{
+	layout->removeWidget(label);
+	layout->removeWidget(bar);
+
+	delete bar; bar = NULL;
+	delete label; label = NULL;
+}
+
+void ProgressBarBundleServer::update(qint64 value)
+{
+	bar->setValue(value);
+}
 
 MainWindow::MainWindow(QWidget *parent) :
     QMainWindow(parent),
@@ -45,7 +94,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 {
 	Q_UNUSED(event);
 
-	qDebug() << "Close event received";
+	//qDebug() << "Close event received";
 	server->close();
 
 	settings->beginWriteArray("shared_directories");
@@ -67,7 +116,7 @@ void MainWindow::removeSelected()
 {
 	QModelIndex index = ui->tvDirList->currentIndex();
 
-	qDebug() << "Trying to remove";
+	//qDebug() << "Trying to remove";
 	if(model->removeRows(0, 0, index))
 		*m_serializedList = model->getSerializedList();
 }
@@ -98,11 +147,42 @@ void MainWindow::addNewDirectory()
 	}
 }
 
+void MainWindow::fileTransferInitiated(FileInfo *file, ServerObject *obj, QString peer_ip)
+{
+	ProgressBarBundleServer *pbb = new ProgressBarBundleServer(file, peer_ip, obj, this);
+
+	pbb->insertIntoLayout(1, ui->vlProgressBarLayout);
+
+	progressBars.insert(obj, pbb);
+}
+
+void MainWindow::fileTransferUpdate(qint64 bytes, ServerObject *obj)
+{
+	if(!progressBars.contains(obj))
+		return;
+
+	progressBars.value(obj)->update(bytes);
+}
+
+void MainWindow::fileTransferCompleted(ServerObject *obj)
+{
+	toRemove.enqueue(obj);
+	QTimer::singleShot(10000, this, SLOT(removePB()));
+}
+
+void MainWindow::removePB()
+{
+	ServerObject *obj = toRemove.dequeue();
+	progressBars.value(obj)->removeFromLayout(ui->vlProgressBarLayout);
+	delete progressBars.value(obj);
+	progressBars.remove(obj);
+}
+
 void MainWindow::newConnection(int socketDescriptor)
 {
 	//Handle New Connection
 
-	qDebug() << "New Connection: " << socketDescriptor;
+	//qDebug() << "New Connection: " << socketDescriptor;
 	QThread *thread = new QThread(this);
 
 	ServerObject *serverObject = new ServerObject(socketDescriptor, m_serializedList);
@@ -110,6 +190,16 @@ void MainWindow::newConnection(int socketDescriptor)
 	serverObject->moveToThread(thread);
 	connect(thread, SIGNAL(started()), serverObject, SLOT(handleConnection()));
 	connect(serverObject, SIGNAL(finished()), thread, SLOT(quit()));
+	connect(serverObject, SIGNAL(fileTransferBeginning(FileInfo*,ServerObject*,QString)),
+			this, SLOT(fileTransferInitiated(FileInfo*,ServerObject*,QString)));
+
+	connect(serverObject, SIGNAL(fileTransferCompleted(ServerObject*)),
+			this, SLOT(fileTransferCompleted(ServerObject*)));
+
+	connect(serverObject,  SIGNAL(progressUpdate(qint64,ServerObject*)),
+			this, SLOT(fileTransferUpdate(qint64,ServerObject*)));
+
+
 
 	thread->start();
 }

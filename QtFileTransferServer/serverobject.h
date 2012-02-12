@@ -11,22 +11,24 @@ class ServerObject : public QObject
 {
 	Q_OBJECT
 public:
-	explicit ServerObject(int socketDescriptor, QList<FileInfo*> *file_list, QObject *parent = 0);
+	ServerObject(int socketDescriptor, QList<FileInfo*> *file_list, QObject *parent = 0);
+
 	
 signals:
 	void error(QTcpSocket::SocketError socketError);
 	void finished();
 
-	void progressUpdate(float percent);
-	void fileTransferBeginning();
+	void progressUpdate(qint64 bytes_sent, ServerObject *obj);
+	void fileTransferBeginning(FileInfo *file, ServerObject *obj, QString ip);
 	void fileListRequested();
-	void fileTransferCompleted();
+	void fileTransferCompleted(ServerObject *obj);
 	void fileListTransferCompleted();
 
 public slots:
 	void handleConnection();
 
-	void bytesWritten(qint64 bytes);
+	void sendNextListItem(qint64 bytes);
+	void sendNextFilePiece(qint64 bytes);
 
 	void readReady();
 
@@ -41,12 +43,10 @@ private:
 	QTcpSocket *m_socket;
 
 	QList<FileInfo*> *m_fileList;
-	unsigned int m_items_sent;
+	int m_items_sent;
 
 
 	QFile *m_file;
-	qint64 m_file_size;
-	qint64 m_bytes_sent;
 	FileInfo *send_file;
 	
 };
