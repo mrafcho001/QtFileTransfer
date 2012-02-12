@@ -100,8 +100,6 @@ void ServerObject::sendNextListItem(qint64 bytes)
 		m_socket->close();
 		return;
 	}
-	qDebug() << "sending " << m_fileList->at(m_items_sent)->getName()
-			 << ", ID: " << m_fileList->at(m_items_sent)->getId();
 
 	m_socket->write(m_fileList->at(m_items_sent)->getByteArray());
 	m_items_sent++;

@@ -208,8 +208,13 @@ void MainWindow::onListReceiveData()
 
 	unsigned int size;
 
+	//THIS DOES NOT WORK.  MESSAGES DO NOT ALIGN
+	//Psoible fixes included
 	while(m_socket->bytesAvailable() > 0)
 	{
+		m_socket->peek((char*)&size, sizeof(size));
+		if(m_socket->bytesAvailable() < size)
+			return;
 		m_socket->read((char*)&size, sizeof(size));
 
 		char *buff = new char[size];
