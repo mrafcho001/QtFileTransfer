@@ -104,6 +104,12 @@ void MainWindow::downloadFileList()
 	m_socket = new QTcpSocket(this);
 	m_socket->connectToHost(serverAddress, DEFAULT_SERVER_LISTEN_PORT);
 
+	if(!m_socket->isValid())
+	{
+		QMessageBox::warning(this, tr("Connection Failed"), tr("Could not connect to server. Please ensure the IP address is correct."), QMessageBox::Ok, QMessageBox::Ok);
+		m_socket->deleteLater();
+		return;
+	}
 	list_ack_receieved = false;
 
 	connControlMsg msg;
