@@ -150,7 +150,7 @@ void MainWindow::requestFileDownload()
 	client->moveToThread(thread);
 
 	connect(client, SIGNAL(fileTransferBeginning(FileInfo*,DownloadClient*)),
-			this, SLOT(fileTransferStarted()));
+			this, SLOT(fileTransferStarted(FileInfo*,DownloadClient*)));
 	connect(client, SIGNAL(fileTransferUpdate(qint64,DownloadClient*)),
 			this, SLOT(fileTransferUpdated(qint64,DownloadClient*)));
 	connect(client, SIGNAL(fileTransferComplete(DownloadClient*)),
