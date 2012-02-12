@@ -157,6 +157,7 @@ void MainWindow::requestFileDownload()
 			this, SLOT(fileTransferCompleted(DownloadClient*)));
 
 	connect(thread, SIGNAL(started()), client, SLOT(beginDownload()));
+	connect(client, SIGNAL(finished()), thread, SLOT(quit()));
 
 	thread->start();
 }
