@@ -38,7 +38,8 @@ enum ConnectionControl { REQUEST_FILE_LIST,
 struct connControlMsg
 {
 	ConnectionControl message;
-	char sha1_id[20];
+	unsigned long long pos;
+	char sha1_id[SHA1_BYTECOUNT];
 };
 
 struct file
