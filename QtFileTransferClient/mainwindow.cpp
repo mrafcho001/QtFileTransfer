@@ -66,6 +66,7 @@ MainWindow::MainWindow(QWidget *parent) :
     ui->setupUi(this);
 	connect(ui->pbGetFiles, SIGNAL(clicked()), this, SLOT(downloadFileList()));
 	connect(ui->pbDownloadSelected, SIGNAL(clicked()), this, SLOT(requestFileDownload()));
+	connect(ui->pbSelectDownloadDir, SIGNAL(clicked()), this, SLOT(selectNewSaveDirectory()));
 
 	QString Octet = "(?:[0-1]?[0-9]?[0-9]|2[0-4][0-9]|25[0-5])";
 	ui->leServerIP->setValidator(new QRegExpValidator(QRegExp("^" + Octet
