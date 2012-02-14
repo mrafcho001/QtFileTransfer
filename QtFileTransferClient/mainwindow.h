@@ -18,6 +18,7 @@ class QProgressBar;
 class QLabel;
 class QVBoxLayout;
 class QSettings;
+class QFrame;
 
 class ProgressBarBundleClient
 {
@@ -34,6 +35,7 @@ private:
 	QProgressBar *bar;
 	QLabel *label;
 	FileInfo *file;
+	QFrame *hLine;
 	DownloadClient *client;
 };
 

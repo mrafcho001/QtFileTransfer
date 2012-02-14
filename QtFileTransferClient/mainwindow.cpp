@@ -31,27 +31,33 @@ ProgressBarBundleClient::ProgressBarBundleClient(FileInfo* file, DownloadClient 
 	bar->setMaximum(file->getSize());
 	bar->setValue(0);
 	bar->setTextVisible(true);
+	hLine = new QFrame(parent);
+	hLine->setFrameShape(QFrame::HLine);
 }
 
 ProgressBarBundleClient::~ProgressBarBundleClient()
 {
 	if(bar) delete bar;
 	if(label) delete label;
+	if(hLine) delete hLine;
 }
 
 void ProgressBarBundleClient::insertIntoLayout(int reverse_index, QVBoxLayout *layout)
 {
 	layout->insertWidget(layout->count()-reverse_index, label);
 	layout->insertWidget(layout->count()-reverse_index, bar);
+	layout->insertWidget(layout->count()-reverse_index, hLine);
 }
 
 void ProgressBarBundleClient::removeFromLayout(QVBoxLayout *layout)
 {
 	layout->removeWidget(label);
 	layout->removeWidget(bar);
+	layout->removeWidget(hLine);
 
 	delete bar; bar = NULL;
 	delete label; label = NULL;
+	delete hLine; hLine = NULL;
 }
 
 void ProgressBarBundleClient::update(qint64 value)

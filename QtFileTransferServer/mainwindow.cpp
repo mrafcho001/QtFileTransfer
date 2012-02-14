@@ -36,6 +36,7 @@ ProgressBarBundleServer::~ProgressBarBundleServer()
 {
 	if(bar) delete bar;
 	if(label) delete label;
+	if(hLine) delete hLine;
 }
 
 void ProgressBarBundleServer::insertIntoLayout(int reverse_index, QVBoxLayout *layout)
