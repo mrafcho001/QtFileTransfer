@@ -73,6 +73,7 @@ void ServerObject::sendNextListItem(qint64 bytes)
 
 void ServerObject::sendNextFilePiece(qint64 bytes)
 {
+	qDebug() << "Bytes to write: " << m_socket->bytesToWrite();
 	(void)bytes;
 	if(m_file->atEnd())
 	{

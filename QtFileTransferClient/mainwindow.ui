@@ -133,7 +133,7 @@
         <item>
          <widget class="QPushButton" name="pbDownloadSelected">
           <property name="text">
-           <string>Download Selected FIles</string>
+           <string>Download Selected Files</string>
           </property>
          </widget>
         </item>
@@ -182,8 +182,8 @@
             <rect>
              <x>0</x>
              <y>0</y>
-             <width>496</width>
-             <height>492</height>
+             <width>86</width>
+             <height>16</height>
             </rect>
            </property>
            <layout class="QHBoxLayout" name="horizontalLayout_4">
