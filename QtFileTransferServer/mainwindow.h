@@ -21,6 +21,7 @@ class MainWindow;
 
 //Forward declarations
 class QProgressBar;
+class QFrame;
 
 class ProgressBarBundleServer
 {
@@ -36,6 +37,7 @@ public:
 private:
 	QProgressBar *bar;
 	QLabel *label;
+	QFrame *hLine;
 	FileInfo *file;
 	ServerObject *server;
 };

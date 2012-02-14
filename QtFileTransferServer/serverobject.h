@@ -6,6 +6,7 @@
 #include <QList>
 #include <QFile>
 #include "../fileinfo.h"
+#include "../sharedstructures.h"
 
 class ServerObject : public QObject
 {
@@ -27,14 +28,20 @@ signals:
 public slots:
 	void handleConnection();
 
+private slots:
+	void readReady();
 	void sendNextListItem(qint64 bytes);
 	void sendNextFilePiece(qint64 bytes);
 
-	void readReady();
-
 	void disconnected();
+	void fileTransferSocketError(QAbstractSocket::SocketError err);
 
 private:
+
+	void listRequest();
+	void fileRequest(connControlMsg msg);
+
+
 	enum opMode { NONE, SENDING_FILE, SENDING_LIST };
 
 

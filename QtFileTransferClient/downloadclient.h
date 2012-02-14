@@ -37,7 +37,9 @@ private slots:
 	void responseHandle();
 	void dataReceive();
 
+	void connectedHandle();
 	void disconnectedHandle();
+	void errorHandle(QAbstractSocket::SocketError err);
 
 private:
 	bool initFileForWriting();

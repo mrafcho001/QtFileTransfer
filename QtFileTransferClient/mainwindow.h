@@ -57,6 +57,8 @@ public slots:
 	void removeProgresBar();
 
 
+	void sock_connected();
+	void sock_error(QAbstractSocket::SocketError err);
 	void sock_disconn();
 	void onListReceiveData();
 

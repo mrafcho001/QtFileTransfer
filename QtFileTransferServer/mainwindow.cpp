@@ -7,6 +7,7 @@
 #include <QFileDialog>
 #include <QProgressBar>
 #include <QTimer>
+#include <QFrame>
 
 
 ProgressBarBundleServer::ProgressBarBundleServer()
@@ -26,6 +27,9 @@ ProgressBarBundleServer::ProgressBarBundleServer(FileInfo *file, QString &ip, Se
 	bar->setMaximum(file->getSize());
 	bar->setValue(0);
 	bar->setTextVisible(true);
+
+	hLine = new QFrame(parent);
+	hLine->setFrameShape(QFrame::HLine);
 }
 
 ProgressBarBundleServer::~ProgressBarBundleServer()
@@ -38,6 +42,7 @@ void ProgressBarBundleServer::insertIntoLayout(int reverse_index, QVBoxLayout *l
 {
 	layout->insertWidget(layout->count()-reverse_index, label);
 	layout->insertWidget(layout->count()-reverse_index, bar);
+	layout->insertWidget(layout->count()-reverse_index, hLine);
 }
 
 
@@ -45,9 +50,11 @@ void ProgressBarBundleServer::removeFromLayout(QVBoxLayout *layout)
 {
 	layout->removeWidget(label);
 	layout->removeWidget(bar);
+	layout->removeWidget(hLine);
 
 	delete bar; bar = NULL;
 	delete label; label = NULL;
+	delete hLine; hLine = NULL;
 }
 
 void ProgressBarBundleServer::update(qint64 value)
@@ -90,6 +97,11 @@ MainWindow::MainWindow(QWidget *parent) :
 	m_serializedList = new QList<FileInfo*>(model->getSerializedList());
 }
 
+MainWindow::~MainWindow()
+{
+	delete ui;
+}
+
 void MainWindow::closeEvent(QCloseEvent *event)
 {
 	Q_UNUSED(event);
@@ -109,7 +121,8 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 	delete server;
 	delete settings;
-
+	delete model;
+	if(m_serializedList) delete m_serializedList;
 }
 
 void MainWindow::removeSelected()
@@ -202,10 +215,4 @@ void MainWindow::newConnection(int socketDescriptor)
 
 
 	thread->start();
-}
-
-
-MainWindow::~MainWindow()
-{
-    delete ui;
 }

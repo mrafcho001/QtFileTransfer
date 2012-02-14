@@ -74,24 +74,8 @@ void DownloadClient::beginDownload()
 
 	m_socket = new QTcpSocket();
 
+	connect(m_socket, SIGNAL(connected()), this, SLOT(connectedHandle()));
 	m_socket->connectToHost(m_serverAddress, m_serverPort);
-
-	if(!m_socket->isValid())
-	{
-		qCritical() << "Could not connect to server.  Action canceled.";
-		return;
-	}
-
-	m_currentMode = REQUEST_PENDING;
-
-	connControlMsg msg;
-	msg.message = REQUEST_FILE_DOWNLOAD;
-	memcpy(msg.sha1_id, m_fileInfo->getHash().constData(), SHA1_BYTECOUNT);
-
-	m_socket->write((char*)&msg, sizeof(msg));
-
-	connect(m_socket, SIGNAL(readyRead()), this, SLOT(responseHandle()));
-	connect(m_socket, SIGNAL(disconnected()), this, SLOT(disconnectedHandle()));
 }
 
 void DownloadClient::responseHandle()
@@ -99,7 +83,7 @@ void DownloadClient::responseHandle()
 	if(m_socket->bytesAvailable() < (qint64)sizeof(connControlMsg))
 	{
 		qCritical() << "Did not recieve proper response.  Quiting file download";
-		m_socket->disconnect();
+		m_socket->close();
 		return;
 	}
 
@@ -133,11 +117,44 @@ void DownloadClient::dataReceive()
 		completeAndClose();
 }
 
+void DownloadClient::connectedHandle()
+{
+	if(!m_socket->isValid())
+	{
+		qCritical() << "Could not connect to server.  Action canceled.";
+		return;
+	}
+
+	m_currentMode = REQUEST_PENDING;
+
+	connControlMsg msg;
+	msg.message = REQUEST_FILE_DOWNLOAD;
+	memcpy(msg.sha1_id, m_fileInfo->getHash().constData(), SHA1_BYTECOUNT);
+
+	m_socket->write((char*)&msg, sizeof(msg));
+
+	connect(m_socket, SIGNAL(readyRead()), this, SLOT(responseHandle()));
+	connect(m_socket, SIGNAL(disconnected()), this, SLOT(disconnectedHandle()));
+	connect(m_socket, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(errorHandle(QAbstractSocket::SocketError)));
+
+}
+
 void DownloadClient::disconnectedHandle()
 {
 	if(m_outFile) delete m_outFile;
 	if(m_socket)  m_socket->deleteLater();
 	emit finished();
+}
+
+void DownloadClient::errorHandle(QAbstractSocket::SocketError err)
+{
+	if(err == QAbstractSocket::RemoteHostClosedError
+			|| err == QAbstractSocket::NetworkError
+			|| err == QAbstractSocket::UnknownSocketError)
+	{
+		m_socket->close();
+		m_outFile->close();
+	}
 }
 
 bool DownloadClient::initFileForWriting()
@@ -161,6 +178,6 @@ bool DownloadClient::completeAndClose()
 	memcpy(msg.sha1_id, m_fileInfo->getHash().constData(), SHA1_BYTECOUNT);
 
 	m_socket->write((char*)&msg, sizeof(msg));
-	m_socket->disconnect();
+	m_socket->close();
 	return true;
 }

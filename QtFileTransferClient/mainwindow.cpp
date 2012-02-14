@@ -102,23 +102,11 @@ void MainWindow::downloadFileList()
 	settings->setValue("client/ip", ui->leServerIP->text());
 
 	m_socket = new QTcpSocket(this);
+	connect(m_socket, SIGNAL(connected()), this, SLOT(sock_connected()));
+	connect(m_socket, SIGNAL(error(QAbstractSocket::SocketError)),
+			this, SLOT(sock_error(QAbstractSocket::SocketError)));
+
 	m_socket->connectToHost(serverAddress, DEFAULT_SERVER_LISTEN_PORT);
-
-	if(!m_socket->isValid())
-	{
-		QMessageBox::warning(this, tr("Connection Failed"), tr("Could not connect to server. Please ensure the IP address is correct."), QMessageBox::Ok, QMessageBox::Ok);
-		m_socket->deleteLater();
-		return;
-	}
-	list_ack_receieved = false;
-
-	connControlMsg msg;
-	msg.message = REQUEST_FILE_LIST;
-
-	m_socket->write((char*)&msg, sizeof(msg));
-
-	connect(m_socket, SIGNAL(readyRead()), this, SLOT(onListReceiveData()));
-	connect(m_socket, SIGNAL(disconnected()), this, SLOT(sock_disconn()));
 }
 
 void MainWindow::requestFileDownload()
@@ -190,11 +178,48 @@ void MainWindow::selectNewSaveDirectory()
 	}
 }
 
+void MainWindow::sock_connected()
+{
+	if(!m_socket->isValid())
+	{
+		return;
+	}
+	list_ack_receieved = false;
+
+	connControlMsg msg;
+	msg.message = REQUEST_FILE_LIST;
+
+	m_socket->write((char*)&msg, sizeof(msg));
+
+	connect(m_socket, SIGNAL(readyRead()), this, SLOT(onListReceiveData()));
+	connect(m_socket, SIGNAL(disconnected()), this, SLOT(sock_disconn()));
+}
+
+void MainWindow::sock_error(QAbstractSocket::SocketError err)
+{
+	if(err == QAbstractSocket::ConnectionRefusedError)
+	{
+		QMessageBox::warning(this, tr("Connection Failed"),
+							 tr("Could not connect to server. Please ensure the IP address is correct."),
+							 QMessageBox::Ok, QMessageBox::Ok);
+		m_socket->deleteLater();
+	}
+	else if(err != QAbstractSocket::RemoteHostClosedError)
+	{
+		QMessageBox::warning(this, tr("Network Error"),
+							 tr("There was a network error, please try again later."),
+							 QMessageBox::Ok, QMessageBox::Ok);
+		m_socket->close();
+	}
+}
+
 void MainWindow::sock_disconn()
 {
+	qDebug() << "No loose ends..";
 	disconnect(m_socket, 0,0,0);
 	m_socket->deleteLater();
 }
+
 void MainWindow::onListReceiveData()
 {
 	if(!list_ack_receieved)
