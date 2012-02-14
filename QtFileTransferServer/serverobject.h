@@ -7,6 +7,7 @@
 #include <QFile>
 #include "../fileinfo.h"
 #include "../sharedstructures.h"
+#include <QTimer>
 
 class ServerObject : public QObject
 {
@@ -19,10 +20,11 @@ signals:
 	void error(QTcpSocket::SocketError socketError);
 	void finished();
 
-	void progressUpdate(qint64 bytes_sent, ServerObject *obj);
+	void progressUpdate(qint64 bytes_sent, double speed, ServerObject *obj);
 	void fileTransferBeginning(FileInfo *file, ServerObject *obj, QString ip);
 	void fileListRequested();
 	void fileTransferCompleted(ServerObject *obj);
+	void fileTransferAborted(ServerObject *obj);
 	void fileListTransferCompleted();
 
 public slots:
@@ -35,6 +37,8 @@ private slots:
 
 	void disconnected();
 	void fileTransferSocketError(QAbstractSocket::SocketError err);
+
+	void triggerUIupdate();
 
 private:
 
@@ -55,6 +59,20 @@ private:
 
 	QFile *m_file;
 	FileInfo *send_file;
+
+	QTime *timer;
+
+	int prev_bytes_sent[10];
+	int prev_times_sent[10];
+	int tail_index;
+
+	int dbytes;
+	int prev_bytes;
+
+	void update_speed(int bytes_sent, int ms);
+	double getSpeed();
+
+	QTimer *regular_ui_updates;
 	
 };
 

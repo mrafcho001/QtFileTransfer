@@ -32,7 +32,9 @@ public:
 
 	void insertIntoLayout(int reverse_index, QVBoxLayout *layout);
 	void removeFromLayout(QVBoxLayout *layout);
-	void update(qint64 value);
+	void update(qint64 value, double speed);
+
+	void setAborted();
 
 private:
 	QProgressBar *bar;
@@ -59,8 +61,9 @@ public slots:
 	void addNewDirectory();
 
 	void fileTransferInitiated(FileInfo *file, ServerObject *obj, QString peer_ip);
-	void fileTransferUpdate(qint64 bytes, ServerObject *obj);
+	void fileTransferUpdate(qint64 bytes, double speed, ServerObject *obj);
 	void fileTransferCompleted(ServerObject *obj);
+	void fileTransferAborted(ServerObject *obj);
 	void removePB();
     
 private:

@@ -33,7 +33,9 @@ enum ConnectionControl { REQUEST_FILE_LIST = 1,
 						 PARTIAL_FILE_REQUEST_GRANTED = (1<<7),
 						 PARTIAL_FILE_REQUEST_REJECTED = (1<<8),
 
-						 FILE_COMPLETED = (1<<9) };
+						 FILE_COMPLETED = (1<<9),
+						 FILE_CANCEL_TRANSFER = (1<<10)
+					   };
 
 struct connControlMsg
 {

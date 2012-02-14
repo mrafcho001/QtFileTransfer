@@ -22,7 +22,7 @@ ProgressBarBundleServer::ProgressBarBundleServer(FileInfo *file, QString &ip, Se
 {
 	this->file = file;
 	server = serverObj;
-	label = new QLabel(file->getName().append(" -> ").append(ip), parent);
+	label = new QLabel(file->getName().append(" -> ").append(ip).append(" @ "), parent);
 	bar = new QProgressBar(parent);
 	bar->setMaximum(file->getSize());
 	bar->setValue(0);
@@ -58,9 +58,17 @@ void ProgressBarBundleServer::removeFromLayout(QVBoxLayout *layout)
 	delete hLine; hLine = NULL;
 }
 
-void ProgressBarBundleServer::update(qint64 value)
+void ProgressBarBundleServer::update(qint64 value, double speed)
 {
 	bar->setValue(value);
+	QString str = label->text();
+	str.truncate(str.lastIndexOf(QChar('@'))+2);
+	str.append(QString::number(speed));
+	label->setText(str);
+}
+void ProgressBarBundleServer::setAborted()
+{
+	label->setText(file->getName().append(" Aborted!!"));
 }
 
 MainWindow::MainWindow(QWidget *parent) :
@@ -170,18 +178,24 @@ void MainWindow::fileTransferInitiated(FileInfo *file, ServerObject *obj, QStrin
 	progressBars.insert(obj, pbb);
 }
 
-void MainWindow::fileTransferUpdate(qint64 bytes, ServerObject *obj)
+void MainWindow::fileTransferUpdate(qint64 bytes, double speed, ServerObject *obj)
 {
 	if(!progressBars.contains(obj))
 		return;
 
-	progressBars.value(obj)->update(bytes);
+	progressBars.value(obj)->update(bytes,speed);
 }
 
 void MainWindow::fileTransferCompleted(ServerObject *obj)
 {
 	toRemove.enqueue(obj);
 	QTimer::singleShot(10000, this, SLOT(removePB()));
+}
+
+void MainWindow::fileTransferAborted(ServerObject *obj)
+{
+	progressBars.value(obj)->setAborted();
+	fileTransferCompleted(obj);
 }
 
 void MainWindow::removePB()
@@ -210,8 +224,11 @@ void MainWindow::newConnection(int socketDescriptor)
 	connect(serverObject, SIGNAL(fileTransferCompleted(ServerObject*)),
 			this, SLOT(fileTransferCompleted(ServerObject*)));
 
-	connect(serverObject,  SIGNAL(progressUpdate(qint64,ServerObject*)),
-			this, SLOT(fileTransferUpdate(qint64,ServerObject*)));
+	connect(serverObject, SIGNAL(fileTransferAborted(ServerObject*)),
+			this, SLOT(fileTransferAborted(ServerObject*)));
+
+	connect(serverObject,  SIGNAL(progressUpdate(qint64,double,ServerObject*)),
+			this, SLOT(fileTransferUpdate(qint64,double,ServerObject*)));
 
 
 
