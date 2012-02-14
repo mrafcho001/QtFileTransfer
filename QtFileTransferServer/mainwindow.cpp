@@ -115,6 +115,8 @@ void MainWindow::closeEvent(QCloseEvent *event)
 {
 	Q_UNUSED(event);
 
+	emit stopAllThreads();
+
 	//qDebug() << "Close event received";
 	server->close();
 
@@ -230,6 +232,7 @@ void MainWindow::newConnection(int socketDescriptor)
 	connect(serverObject,  SIGNAL(progressUpdate(qint64,double,ServerObject*)),
 			this, SLOT(fileTransferUpdate(qint64,double,ServerObject*)));
 
+	connect(this, SIGNAL(stopAllThreads()), serverObject, SLOT(quitRequest()));
 
 
 	thread->start();

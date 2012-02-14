@@ -9,6 +9,8 @@
 #include "../sharedstructures.h"
 #include <QTimer>
 
+#define HISTORY_SIZE	10
+
 class ServerObject : public QObject
 {
 	Q_OBJECT
@@ -29,6 +31,7 @@ signals:
 
 public slots:
 	void handleConnection();
+	void quitRequest();
 
 private slots:
 	void readReady();
@@ -59,15 +62,14 @@ private:
 
 	QFile *m_file;
 	FileInfo *send_file;
+	qint64 bytes_sent_total;
 
 	QTime *timer;
-
-	int prev_bytes_sent[10];
-	int prev_times_sent[10];
-	int tail_index;
-
-	int dbytes;
-	int prev_bytes;
+	int running_byte_total;
+	int running_ms_total;
+	int prev_bytes_sent[HISTORY_SIZE];
+	int prev_times_sent[HISTORY_SIZE];
+	int head_index;
 
 	void update_speed(int bytes_sent, int ms);
 	double getSpeed();

@@ -6,7 +6,7 @@
 
 ServerObject::ServerObject(int sockDescriptor, QList<FileInfo*> *file_list, QObject *parent) :
 	QObject(parent), m_socketDescriptor(sockDescriptor), m_socket(NULL), m_file(NULL),
-	timer(NULL), tail_index(0), regular_ui_updates(NULL)
+	timer(NULL), head_index(0), regular_ui_updates(NULL)
 {
 	m_fileList = file_list;
 }
@@ -24,6 +24,13 @@ void ServerObject::handleConnection()
 
 	connect(m_socket, SIGNAL(readyRead()), this, SLOT(readReady()));
 	connect(m_socket, SIGNAL(disconnected()), this, SLOT(disconnected()));
+}
+
+
+void ServerObject::quitRequest()
+{
+	qDebug() << "Should trigger Disconnected()";
+	m_socket->close();
 }
 
 void ServerObject::readReady()
@@ -77,48 +84,30 @@ void ServerObject::sendNextListItem(qint64 bytes)
 
 void ServerObject::sendNextFilePiece(qint64 bytes)
 {
-	qint64 bytes_to_write = m_socket->bytesToWrite();
-
-	int total_writen = dbytes + (prev_bytes - bytes_to_write);
-	int ms_time = timer->elapsed();
-
-	update_speed(total_writen, ms_time);
-
-	prev_bytes =bytes_to_write;
-	if(m_socket->bytesToWrite() > 2*FILE_CHUNK_SIZE)
-	{
-		dbytes = 0;
-		return;
-	}
-	(void)bytes;
-	if(m_file->atEnd())
-	{
-		emit progressUpdate(m_file->pos(), getSpeed(), this);
-		m_file->close();
-		delete m_file;	m_file = NULL;
-		/*
-		emit fileTransferCompleted(this);
-		*/
-		disconnect(m_socket, SIGNAL(bytesWritten(qint64)), this, SLOT(sendNextFilePiece(qint64)));
-		/*disconnect(m_socket, SIGNAL(error(QAbstractSocket::SocketError)),
-				   this, SLOT(fileTransferSocketError(QAbstractSocket::SocketError)));
-				   */
-		return;
-	}
-
-	dbytes = m_socket->write(m_file->read(FILE_CHUNK_SIZE));
+	update_speed(bytes, timer->elapsed());
 	timer->restart();
+
+	bytes_sent_total += bytes;
+
+
+	emit progressUpdate(m_file->pos(), getSpeed(), this);
+
+	if(m_socket->bytesToWrite() > 2*FILE_CHUNK_SIZE
+			|| m_file->atEnd())
+		return;
+
+	m_socket->write(m_file->read(FILE_CHUNK_SIZE));
 }
 
 void ServerObject::disconnected()
 {
+	qDebug() << "Disconnected triggered";
 	m_socket->disconnect();
 	m_socket->deleteLater();
 	if(m_file)
 	{
 		if(m_file->pos() < send_file->getSize())
 		{
-			qDebug() << "Aborted";
 			emit fileTransferAborted(this);
 		}
 
@@ -219,26 +208,20 @@ void ServerObject::fileRequest(connControlMsg msg)
 
 void ServerObject::update_speed(int bytes_sent, int ms)
 {
-	prev_bytes_sent[tail_index] = bytes_sent;
-	prev_times_sent[tail_index] = ms;
-	tail_index = (tail_index+1)%10;
+	head_index = (head_index+1)%HISTORY_SIZE;
+
+	//Add new bytes to total and remove the tail bytes
+	running_byte_total += bytes_sent - prev_bytes_sent[head_index];
+	running_ms_total += ms - prev_times_sent[head_index];
+
+	//update the head bytes
+	prev_bytes_sent[head_index] = bytes_sent;
+	prev_times_sent[head_index] = ms;
 }
 
 double ServerObject::getSpeed()
 {
-
-	int total_bytes = prev_bytes_sent[0];
-	int total_time = prev_times_sent[0];
-
-	for(int i = 1; i < 10; i++)
-	{
-		total_bytes += prev_bytes_sent[i];
-		total_time += prev_times_sent[i];
-	}
-
-	double avg_speed = total_bytes/1024.0;
-	avg_speed /= total_time/1000.0;
-	return avg_speed;
+	return (running_byte_total/1024.0)/(running_ms_total/1000.0);
 }
 
 

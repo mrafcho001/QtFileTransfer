@@ -54,6 +54,10 @@ public:
 
 	void closeEvent(QCloseEvent *event);
 
+signals:
+
+	void stopAllThreads();
+
 public slots:
 	void newConnection(int socketDescriptor);
 
