@@ -16,22 +16,23 @@ class ServerObject : public QObject
 	Q_OBJECT
 public:
 	ServerObject(int socketDescriptor, QList<FileInfo*> *file_list, QObject *parent = 0);
-
+	~ServerObject();
 	
 signals:
 	void error(QTcpSocket::SocketError socketError);
 	void finished();
 
-	void progressUpdate(qint64 bytes_sent, double speed, ServerObject *obj);
 	void fileTransferBeginning(FileInfo *file, ServerObject *obj, QString ip);
-	void fileListRequested();
+	void fileTransferUpdated(qint64 bytes_sent, double speed, ServerObject *obj);
 	void fileTransferCompleted(ServerObject *obj);
 	void fileTransferAborted(ServerObject *obj);
+
+	void fileListRequested();
 	void fileListTransferCompleted();
 
 public slots:
 	void handleConnection();
-	void quitRequest();
+	void cleanupRequest();
 
 private slots:
 	void readReady();
@@ -47,6 +48,8 @@ private:
 
 	void listRequest();
 	void fileRequest(connControlMsg msg);
+	void updateSpeed(int bytes_sent, int ms);
+	double getSpeed();
 
 
 	enum opMode { NONE, SENDING_FILE, SENDING_LIST };
@@ -61,20 +64,19 @@ private:
 
 
 	QFile *m_file;
-	FileInfo *send_file;
-	qint64 bytes_sent_total;
+	FileInfo *m_fileInfo;
+	qint64 m_totalBytesSent;
 
-	QTime *timer;
-	int running_byte_total;
-	int running_ms_total;
-	int prev_bytes_sent[HISTORY_SIZE];
-	int prev_times_sent[HISTORY_SIZE];
-	int head_index;
+	QTimer *m_uiTimer;
 
-	void update_speed(int bytes_sent, int ms);
-	double getSpeed();
+	QTime *m_speedTimer;
+	int m_runningByteTotal;
+	int m_runningTimeTotal;
+	int m_byteHistory[HISTORY_SIZE];
+	int m_timeHistory[HISTORY_SIZE];
+	int m_headIndex;
 
-	QTimer *regular_ui_updates;
+
 	
 };
 

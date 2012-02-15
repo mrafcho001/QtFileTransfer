@@ -52,10 +52,6 @@ void ProgressBarBundleServer::removeFromLayout(QVBoxLayout *layout)
 	layout->removeWidget(label);
 	layout->removeWidget(bar);
 	layout->removeWidget(hLine);
-
-	delete bar; bar = NULL;
-	delete label; label = NULL;
-	delete hLine; hLine = NULL;
 }
 
 void ProgressBarBundleServer::update(qint64 value, double speed)
@@ -66,6 +62,12 @@ void ProgressBarBundleServer::update(qint64 value, double speed)
 	str.append(QString::number(speed));
 	label->setText(str);
 }
+
+void ProgressBarBundleServer::setCompleted()
+{
+	label->setText(file->getName().append(" Completed!"));
+}
+
 void ProgressBarBundleServer::setAborted()
 {
 	label->setText(file->getName().append(" Aborted!!"));
@@ -117,7 +119,6 @@ void MainWindow::closeEvent(QCloseEvent *event)
 
 	emit stopAllThreads();
 
-	//qDebug() << "Close event received";
 	server->close();
 
 	settings->beginWriteArray("shared_directories");
@@ -129,6 +130,14 @@ void MainWindow::closeEvent(QCloseEvent *event)
 	}
 	settings->endArray();
 
+	QHashIterator<ServerObject*,ServerThreadBundle*> iter(workerHash);
+	while(iter.hasNext())
+	{
+		iter.next();
+		iter.value()->thread->quit();
+		iter.value()->thread->wait();
+		delete iter.value();
+	}
 
 	delete server;
 	delete settings;
@@ -173,67 +182,79 @@ void MainWindow::addNewDirectory()
 
 void MainWindow::fileTransferInitiated(FileInfo *file, ServerObject *obj, QString peer_ip)
 {
-	ProgressBarBundleServer *pbb = new ProgressBarBundleServer(file, peer_ip, obj, this);
+	if(!workerHash.contains(obj))
+		return;
 
-	pbb->insertIntoLayout(1, ui->vlProgressBarLayout);
+	ServerThreadBundle *worker = workerHash.value(obj);
 
-	progressBars.insert(obj, pbb);
+	worker->progressBar = new ProgressBarBundleServer(file, peer_ip, obj, this);
+	worker->progressBar->insertIntoLayout(1, ui->vlProgressBarLayout);
 }
 
 void MainWindow::fileTransferUpdate(qint64 bytes, double speed, ServerObject *obj)
 {
-	if(!progressBars.contains(obj))
+	if(!workerHash.contains(obj))
 		return;
 
-	progressBars.value(obj)->update(bytes,speed);
+	workerHash.value(obj)->progressBar->update(bytes,speed);
 }
 
 void MainWindow::fileTransferCompleted(ServerObject *obj)
 {
-	toRemove.enqueue(obj);
-	QTimer::singleShot(10000, this, SLOT(removePB()));
+	toRemove.enqueue(workerHash.value(obj));
+	workerHash.remove(obj);
+
+	QTimer::singleShot(10000, this, SLOT(removeFileTransferUI()));
 }
 
 void MainWindow::fileTransferAborted(ServerObject *obj)
 {
-	progressBars.value(obj)->setAborted();
+	if(!workerHash.contains(obj))
+		return;
+
+	workerHash.value(obj)->progressBar->setAborted();
 	fileTransferCompleted(obj);
 }
 
-void MainWindow::removePB()
+void MainWindow::removeFileTransferUI()
 {
-	ServerObject *obj = toRemove.dequeue();
-	progressBars.value(obj)->removeFromLayout(ui->vlProgressBarLayout);
-	delete progressBars.value(obj);
-	progressBars.remove(obj);
+	ServerThreadBundle *worker = toRemove.dequeue();
+	worker->progressBar->removeFromLayout(ui->vlProgressBarLayout);
+	worker->thread->disconnect();
+
+	delete worker;
 }
 
 void MainWindow::newConnection(int socketDescriptor)
 {
 	//Handle New Connection
 
-	//qDebug() << "New Connection: " << socketDescriptor;
-	QThread *thread = new QThread(this);
+	ServerThreadBundle *worker = new ServerThreadBundle();
 
-	ServerObject *serverObject = new ServerObject(socketDescriptor, m_serializedList);
+	worker->thread = new QThread(this);
+	worker->servObj = new ServerObject(socketDescriptor, m_serializedList);
 
-	serverObject->moveToThread(thread);
-	connect(thread, SIGNAL(started()), serverObject, SLOT(handleConnection()));
-	connect(serverObject, SIGNAL(finished()), thread, SLOT(quit()));
-	connect(serverObject, SIGNAL(fileTransferBeginning(FileInfo*,ServerObject*,QString)),
+	workerHash.insert(worker->servObj, worker);
+
+	worker->servObj->moveToThread(worker->thread);
+
+
+	connect(worker->thread, SIGNAL(started()), worker->servObj, SLOT(handleConnection()));
+	connect(worker->servObj, SIGNAL(finished()), worker->thread, SLOT(quit()));
+
+	connect(worker->servObj, SIGNAL(fileTransferBeginning(FileInfo*,ServerObject*,QString)),
 			this, SLOT(fileTransferInitiated(FileInfo*,ServerObject*,QString)));
 
-	connect(serverObject, SIGNAL(fileTransferCompleted(ServerObject*)),
+	connect(worker->servObj, SIGNAL(fileTransferCompleted(ServerObject*)),
 			this, SLOT(fileTransferCompleted(ServerObject*)));
 
-	connect(serverObject, SIGNAL(fileTransferAborted(ServerObject*)),
+	connect(worker->servObj, SIGNAL(fileTransferAborted(ServerObject*)),
 			this, SLOT(fileTransferAborted(ServerObject*)));
 
-	connect(serverObject,  SIGNAL(progressUpdate(qint64,double,ServerObject*)),
+	connect(worker->servObj,  SIGNAL(fileTransferUpdated(qint64,double,ServerObject*)),
 			this, SLOT(fileTransferUpdate(qint64,double,ServerObject*)));
 
-	connect(this, SIGNAL(stopAllThreads()), serverObject, SLOT(quitRequest()));
+	connect(this, SIGNAL(stopAllThreads()), worker->servObj, SLOT(cleanupRequest()));
 
-
-	thread->start();
+	worker->thread->start();
 }

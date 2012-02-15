@@ -16,7 +16,6 @@ DownloadClient::DownloadClient(FileInfo *fileInfo, QObject *parent) :
 	m_fileInfo = fileInfo;
 }
 
-
 bool DownloadClient::setRequestFile(FileInfo* file)
 {
 	if(m_currentMode == IDLE)
@@ -134,7 +133,7 @@ void DownloadClient::connectedHandle()
 	m_socket->write((char*)&msg, sizeof(msg));
 
 	connect(m_socket, SIGNAL(readyRead()), this, SLOT(responseHandle()));
-	connect(m_socket, SIGNAL(disconnected()), this, SLOT(disconnectedHandle()));
+	//connect(m_socket, SIGNAL(disconnected()), this, SLOT(disconnectedHandle()));
 	connect(m_socket, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(errorHandle(QAbstractSocket::SocketError)));
 
 }
@@ -153,7 +152,17 @@ void DownloadClient::errorHandle(QAbstractSocket::SocketError err)
 			|| err == QAbstractSocket::UnknownSocketError)
 	{
 		m_socket->close();
-		m_outFile->close();
+		m_socket->deleteLater();
+		if(m_outFile)
+		{
+			if(m_outFile->pos() < m_fileInfo->getSize())
+			{
+				emit fileTransferAborted(m_outFile->pos(), this);
+			}
+			m_outFile->close();
+			delete m_outFile;
+		}
+		emit finished();
 	}
 }
 

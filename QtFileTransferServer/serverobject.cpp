@@ -5,10 +5,28 @@
 #include <QTime>
 
 ServerObject::ServerObject(int sockDescriptor, QList<FileInfo*> *file_list, QObject *parent) :
-	QObject(parent), m_socketDescriptor(sockDescriptor), m_socket(NULL), m_file(NULL),
-	timer(NULL), head_index(0), regular_ui_updates(NULL)
+	QObject(parent), m_socketDescriptor(sockDescriptor), m_socket(NULL), m_file(NULL), m_totalBytesSent(0),
+	m_uiTimer(NULL), m_speedTimer(NULL), m_runningByteTotal(0), m_runningTimeTotal(0), m_headIndex(0)
 {
 	m_fileList = file_list;
+}
+ServerObject::~ServerObject()
+{
+	if(m_socket)
+	{
+		m_socket->disconnect();
+		m_socket->close();
+		delete m_socket;
+	}
+
+	if(m_file)
+	{
+		m_file->close();
+		delete m_file;
+	}
+
+	if(m_speedTimer) delete m_speedTimer;
+	if(m_uiTimer) delete m_uiTimer;
 }
 
 void ServerObject::handleConnection()
@@ -27,10 +45,14 @@ void ServerObject::handleConnection()
 }
 
 
-void ServerObject::quitRequest()
+void ServerObject::cleanupRequest()
 {
-	qDebug() << "Should trigger Disconnected()";
+	m_socket->disconnect();
+	m_uiTimer->disconnect();
+
 	m_socket->close();
+	m_uiTimer->stop();
+	this->disconnect();
 }
 
 void ServerObject::readReady()
@@ -59,7 +81,9 @@ void ServerObject::readReady()
 
 		break;
 	case FILE_COMPLETED:
-
+		m_uiTimer->disconnect();
+		m_uiTimer->stop();
+		emit fileTransferUpdated(m_fileInfo->getSize(), 0, this);
 		emit fileTransferCompleted(this);
 
 	default:
@@ -84,13 +108,10 @@ void ServerObject::sendNextListItem(qint64 bytes)
 
 void ServerObject::sendNextFilePiece(qint64 bytes)
 {
-	update_speed(bytes, timer->elapsed());
-	timer->restart();
+	updateSpeed(bytes, m_speedTimer->elapsed());
+	m_speedTimer->restart();
 
-	bytes_sent_total += bytes;
-
-
-	emit progressUpdate(m_file->pos(), getSpeed(), this);
+	m_totalBytesSent += bytes;
 
 	if(m_socket->bytesToWrite() > 2*FILE_CHUNK_SIZE
 			|| m_file->atEnd())
@@ -101,22 +122,17 @@ void ServerObject::sendNextFilePiece(qint64 bytes)
 
 void ServerObject::disconnected()
 {
-	qDebug() << "Disconnected triggered";
 	m_socket->disconnect();
-	m_socket->deleteLater();
 	if(m_file)
 	{
-		if(m_file->pos() < send_file->getSize())
-		{
+		if(m_file->pos() < m_fileInfo->getSize())
 			emit fileTransferAborted(this);
-		}
 
 		m_file->close();
-		delete m_file;
 	}
 
-	if(timer) delete timer;
-	if(regular_ui_updates) delete regular_ui_updates;
+	if(m_uiTimer)
+		m_uiTimer->stop();
 
 	emit finished();
 }
@@ -165,14 +181,14 @@ void ServerObject::fileRequest(connControlMsg msg)
 	{
 		if(m_fileList->value(i)->getHash() == req_hash)
 		{
-			send_file = m_fileList->value(i);
+			m_fileInfo = m_fileList->value(i);
 			break;
 		}
 	}
 
-	if(send_file != NULL)
+	if(m_fileInfo != NULL)
 	{
-		m_file = new QFile(send_file->getPath());
+		m_file = new QFile(m_fileInfo->getPath());
 
 		if(m_file->open(QIODevice::ReadOnly))
 		{
@@ -187,17 +203,18 @@ void ServerObject::fileRequest(connControlMsg msg)
 				connect(m_socket, SIGNAL(error(QAbstractSocket::SocketError)),
 						this, SLOT(fileTransferSocketError(QAbstractSocket::SocketError)));
 
-				emit fileTransferBeginning(send_file, this, m_socket->peerAddress().toString());
-				timer = new QTime();
-				timer->restart();
-				regular_ui_updates = new QTimer(0);
-				connect(regular_ui_updates, SIGNAL(timeout()), this, SLOT(triggerUIupdate()));
-				regular_ui_updates->start(750);
+				emit fileTransferBeginning(m_fileInfo, this, m_socket->peerAddress().toString());
+				m_speedTimer = new QTime();
+				m_speedTimer->restart();
+				m_uiTimer = new QTimer(0);
+				connect(m_uiTimer, SIGNAL(timeout()), this, SLOT(triggerUIupdate()));
+				m_uiTimer->start(750);
 			}
 		}
 	}
 
 	m_socket->write((char*)&response, sizeof(response));
+	m_socket->waitForBytesWritten();
 	if(response.message == FILE_DOWNLOAD_REQUEST_REJECTED
 			|| response.message == PARTIAL_FILE_REQUEST_REJECTED)
 	{
@@ -206,26 +223,26 @@ void ServerObject::fileRequest(connControlMsg msg)
 
 }
 
-void ServerObject::update_speed(int bytes_sent, int ms)
+void ServerObject::updateSpeed(int bytes_sent, int ms)
 {
-	head_index = (head_index+1)%HISTORY_SIZE;
+	m_headIndex = (m_headIndex+1)%HISTORY_SIZE;
 
 	//Add new bytes to total and remove the tail bytes
-	running_byte_total += bytes_sent - prev_bytes_sent[head_index];
-	running_ms_total += ms - prev_times_sent[head_index];
+	m_runningByteTotal += bytes_sent - m_byteHistory[m_headIndex];
+	m_runningTimeTotal += ms - m_timeHistory[m_headIndex];
 
 	//update the head bytes
-	prev_bytes_sent[head_index] = bytes_sent;
-	prev_times_sent[head_index] = ms;
+	m_byteHistory[m_headIndex] = bytes_sent;
+	m_timeHistory[m_headIndex] = ms;
 }
 
 double ServerObject::getSpeed()
 {
-	return (running_byte_total/1024.0)/(running_ms_total/1000.0);
+	return (m_runningByteTotal/1024.0)/(m_runningTimeTotal/1000.0);
 }
 
 
 void ServerObject::triggerUIupdate()
 {
-	emit progressUpdate(m_file->pos(), getSpeed(), this);
+	emit fileTransferUpdated(m_file->pos(), getSpeed(), this);
 }

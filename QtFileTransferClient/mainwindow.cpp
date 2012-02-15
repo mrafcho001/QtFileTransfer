@@ -12,6 +12,8 @@
 #include <QThread>
 #include <QFileDialog>
 #include <QTimer>
+#include <QToolButton>
+#include <QHBoxLayout>
 
 ProgressBarBundleClient::ProgressBarBundleClient()
 {
@@ -19,6 +21,8 @@ ProgressBarBundleClient::ProgressBarBundleClient()
 	label = NULL;
 	file = NULL;
 	client = NULL;
+	restart = NULL;
+	hbox = NULL;
 }
 
 ProgressBarBundleClient::ProgressBarBundleClient(FileInfo* file, DownloadClient *clientObj,
@@ -33,6 +37,14 @@ ProgressBarBundleClient::ProgressBarBundleClient(FileInfo* file, DownloadClient 
 	bar->setTextVisible(true);
 	hLine = new QFrame(parent);
 	hLine->setFrameShape(QFrame::HLine);
+	restart = new QToolButton(parent);
+	restart->setIcon(QIcon(QString(":/icons/stop.png")));
+
+	hbox = new QHBoxLayout();
+	hbox->addWidget(bar);
+	hbox->addWidget(restart);
+	hbox->setStretch(0, 1000);
+	hbox->setStretch(1,1);
 }
 
 ProgressBarBundleClient::~ProgressBarBundleClient()
@@ -40,24 +52,32 @@ ProgressBarBundleClient::~ProgressBarBundleClient()
 	if(bar) delete bar;
 	if(label) delete label;
 	if(hLine) delete hLine;
+	if(restart) delete restart;
+	if(hbox) delete hbox;
 }
 
 void ProgressBarBundleClient::insertIntoLayout(int reverse_index, QVBoxLayout *layout)
 {
 	layout->insertWidget(layout->count()-reverse_index, label);
-	layout->insertWidget(layout->count()-reverse_index, bar);
+	//layout->insertWidget(layout->count()-reverse_index, bar);
+	layout->insertLayout(layout->count()-reverse_index, hbox);
+	//layout->insertWidget(layout->count()-reverse_index, restart);
 	layout->insertWidget(layout->count()-reverse_index, hLine);
 }
 
 void ProgressBarBundleClient::removeFromLayout(QVBoxLayout *layout)
 {
 	layout->removeWidget(label);
-	layout->removeWidget(bar);
+	//layout->removeWidget(bar);
 	layout->removeWidget(hLine);
+	//layout->removeWidget(restart);
+	layout->removeItem(hbox);
 
 	delete bar; bar = NULL;
 	delete label; label = NULL;
 	delete hLine; hLine = NULL;
+	delete restart; restart = NULL;
+	delete hbox; hbox = NULL;
 }
 
 void ProgressBarBundleClient::update(qint64 value)
@@ -289,6 +309,11 @@ void MainWindow::fileTransferCompleted(DownloadClient *dc)
 {
 	toRemove.enqueue(dc);
 	QTimer::singleShot(10000, this, SLOT(removeProgresBar()));
+}
+
+void MainWindow::fileTransferAborted(qint64 bytes_recieved, DownloadClient *dc)
+{
+
 }
 
 void MainWindow::removeProgresBar()

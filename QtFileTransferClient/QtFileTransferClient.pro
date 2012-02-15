@@ -21,3 +21,10 @@ HEADERS  += mainwindow.h \
     downloadclient.h
 
 FORMS    += mainwindow.ui
+
+RESOURCES += \
+    resources.qrc
+
+OTHER_FILES += \
+    stop.png \
+    restart.png

@@ -13,6 +13,7 @@
 #include <QQueue>
 #include <QVBoxLayout>
 #include <QLabel>
+#include <QThread>
 
 namespace Ui {
 class MainWindow;
@@ -22,6 +23,7 @@ class MainWindow;
 //Forward declarations
 class QProgressBar;
 class QFrame;
+class QThread;
 
 class ProgressBarBundleServer
 {
@@ -34,14 +36,34 @@ public:
 	void removeFromLayout(QVBoxLayout *layout);
 	void update(qint64 value, double speed);
 
+	void setCompleted();
 	void setAborted();
 
 private:
 	QProgressBar *bar;
 	QLabel *label;
 	QFrame *hLine;
+
 	FileInfo *file;
 	ServerObject *server;
+};
+
+class ServerThreadBundle
+{
+public:
+	ServerThreadBundle() : thread(NULL), servObj(NULL), progressBar(NULL)
+	{
+	}
+	~ServerThreadBundle()
+	{
+		if(thread) delete thread;
+		if(servObj) delete servObj;
+		if(progressBar) delete progressBar;
+	}
+
+	QThread *thread;
+	ServerObject *servObj;
+	ProgressBarBundleServer *progressBar;
 };
 
 class MainWindow : public QMainWindow
@@ -68,7 +90,7 @@ public slots:
 	void fileTransferUpdate(qint64 bytes, double speed, ServerObject *obj);
 	void fileTransferCompleted(ServerObject *obj);
 	void fileTransferAborted(ServerObject *obj);
-	void removePB();
+	void removeFileTransferUI();
     
 private:
     Ui::MainWindow *ui;
@@ -80,8 +102,8 @@ private:
 
 	QSettings *settings;
 
-	QHash<ServerObject*,ProgressBarBundleServer*> progressBars;
-	QQueue<ServerObject*> toRemove;
+	QHash<ServerObject*,ServerThreadBundle*> workerHash;
+	QQueue<ServerThreadBundle*> toRemove;
 
 };
 

@@ -19,6 +19,8 @@ class QLabel;
 class QVBoxLayout;
 class QSettings;
 class QFrame;
+class QToolButton;
+class QHBoxLayout;
 
 class ProgressBarBundleClient
 {
@@ -34,8 +36,10 @@ public:
 private:
 	QProgressBar *bar;
 	QLabel *label;
-	FileInfo *file;
 	QFrame *hLine;
+	QToolButton *restart;
+	FileInfo *file;
+	QHBoxLayout *hbox;
 	DownloadClient *client;
 };
 
@@ -55,6 +59,7 @@ public slots:
 	void fileTransferStarted(FileInfo* file, DownloadClient* dc);
 	void fileTransferUpdated(qint64 bytes, DownloadClient *dc);
 	void fileTransferCompleted(DownloadClient *dc);
+	void fileTransferAborted(qint64 bytes_recieved, DownloadClient *dc);
 
 	void removeProgresBar();
 

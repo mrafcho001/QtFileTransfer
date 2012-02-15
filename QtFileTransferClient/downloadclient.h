@@ -26,6 +26,7 @@ signals:
 	void fileTransferBeginning(FileInfo* file, DownloadClient* dc);
 	void fileTransferUpdate(qint64 bytes_recieved, DownloadClient *dc);
 	void fileTransferComplete(DownloadClient *dc);
+	void fileTransferAborted(qint64 bytes_recieved, DownloadClient *dc);
 
 	void finished();
 	
