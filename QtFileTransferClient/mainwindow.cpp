@@ -78,6 +78,7 @@ void ClientUIBundle::update(qint64 value, double speed)
 void ClientUIBundle::setFinished()
 {
 	layout->removeWidget(pbAction);
+	delete pbAction;
 	pbProgress->setValue(pbProgress->maximum());
 }
 
@@ -155,6 +156,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 	QHashIterator<DownloadClient*,DownloadWorkerBundle*> iter(workerHash);
 	while(iter.hasNext())
 	{
+		iter.next();
 		//This should wait for thread to quit properly
 		delete iter.value();
 	}

@@ -7,12 +7,14 @@
 #include "../sharedstructures.h"
 
 DownloadClient::DownloadClient(QObject *parent) :
-	QObject(parent), m_currentMode(SETUP), m_socket(NULL), m_outFile(NULL), m_fileInfo(NULL), m_bytesDownloaded(0)
+	QObject(parent), m_currentMode(SETUP), m_socket(NULL), m_outFile(NULL), m_fileInfo(NULL), m_bytesDownloaded(0),
+	m_runningByteTotal(0), m_runningTimeTotal(0), m_headIndex(0)
 {
 }
 
 DownloadClient::DownloadClient(FileInfo *fileInfo, QObject *parent) :
-	QObject(parent),m_currentMode(SETUP), m_socket(NULL), m_outFile(NULL), m_bytesDownloaded(0)
+	QObject(parent),m_currentMode(SETUP), m_socket(NULL), m_outFile(NULL), m_bytesDownloaded(0),
+	m_runningByteTotal(0), m_runningTimeTotal(0), m_headIndex(0)
 {
 	m_fileInfo = new FileInfo(*fileInfo);
 }
