@@ -8,9 +8,9 @@
 #include <QProgressBar>
 #include <QTimer>
 #include <QFrame>
+#include <QCloseEvent>
 
-
-ProgressBarBundleServer::ProgressBarBundleServer()
+ServerUIBundle::ServerUIBundle()
 {
 	bar = NULL;
 	label = NULL;
@@ -18,7 +18,7 @@ ProgressBarBundleServer::ProgressBarBundleServer()
 	server = NULL;
 }
 
-ProgressBarBundleServer::ProgressBarBundleServer(FileInfo *file, QString &ip, ServerObject *serverObj, QWidget *parent)
+ServerUIBundle::ServerUIBundle(FileInfo *file, QString &ip, ServerObject *serverObj, QWidget *parent)
 {
 	this->file = file;
 	server = serverObj;
@@ -32,14 +32,14 @@ ProgressBarBundleServer::ProgressBarBundleServer(FileInfo *file, QString &ip, Se
 	hLine->setFrameShape(QFrame::HLine);
 }
 
-ProgressBarBundleServer::~ProgressBarBundleServer()
+ServerUIBundle::~ServerUIBundle()
 {
 	if(bar) delete bar;
 	if(label) delete label;
 	if(hLine) delete hLine;
 }
 
-void ProgressBarBundleServer::insertIntoLayout(int reverse_index, QVBoxLayout *layout)
+void ServerUIBundle::insertIntoLayout(int reverse_index, QVBoxLayout *layout)
 {
 	layout->insertWidget(layout->count()-reverse_index, label);
 	layout->insertWidget(layout->count()-reverse_index, bar);
@@ -47,14 +47,14 @@ void ProgressBarBundleServer::insertIntoLayout(int reverse_index, QVBoxLayout *l
 }
 
 
-void ProgressBarBundleServer::removeFromLayout(QVBoxLayout *layout)
+void ServerUIBundle::removeFromLayout(QVBoxLayout *layout)
 {
 	layout->removeWidget(label);
 	layout->removeWidget(bar);
 	layout->removeWidget(hLine);
 }
 
-void ProgressBarBundleServer::update(qint64 value, double speed)
+void ServerUIBundle::update(qint64 value, double speed)
 {
 	bar->setValue(value);
 	QString str = label->text();
@@ -63,12 +63,12 @@ void ProgressBarBundleServer::update(qint64 value, double speed)
 	label->setText(str);
 }
 
-void ProgressBarBundleServer::setCompleted()
+void ServerUIBundle::setCompleted()
 {
 	label->setText(file->getName().append(" Completed!"));
 }
 
-void ProgressBarBundleServer::setAborted()
+void ServerUIBundle::setAborted()
 {
 	label->setText(file->getName().append(" Aborted!!"));
 }
@@ -115,8 +115,6 @@ MainWindow::~MainWindow()
 
 void MainWindow::closeEvent(QCloseEvent *event)
 {
-	Q_UNUSED(event);
-
 	emit stopAllThreads();
 
 	server->close();
@@ -130,7 +128,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 	}
 	settings->endArray();
 
-	QHashIterator<ServerObject*,ServerThreadBundle*> iter(workerHash);
+	QHashIterator<ServerObject*,ServerWorkerBundle*> iter(workerHash);
 	while(iter.hasNext())
 	{
 		iter.next();
@@ -143,6 +141,7 @@ void MainWindow::closeEvent(QCloseEvent *event)
 	delete settings;
 	delete model;
 	if(m_serializedList) delete m_serializedList;
+	event->setAccepted(true);
 }
 
 void MainWindow::removeSelected()
@@ -185,9 +184,9 @@ void MainWindow::fileTransferInitiated(FileInfo *file, ServerObject *obj, QStrin
 	if(!workerHash.contains(obj))
 		return;
 
-	ServerThreadBundle *worker = workerHash.value(obj);
+	ServerWorkerBundle *worker = workerHash.value(obj);
 
-	worker->progressBar = new ProgressBarBundleServer(file, peer_ip, obj, this);
+	worker->progressBar = new ServerUIBundle(file, peer_ip, obj, this);
 	worker->progressBar->insertIntoLayout(1, ui->vlProgressBarLayout);
 }
 
@@ -218,7 +217,7 @@ void MainWindow::fileTransferAborted(ServerObject *obj)
 
 void MainWindow::removeFileTransferUI()
 {
-	ServerThreadBundle *worker = toRemove.dequeue();
+	ServerWorkerBundle *worker = toRemove.dequeue();
 	worker->progressBar->removeFromLayout(ui->vlProgressBarLayout);
 	worker->thread->disconnect();
 
@@ -229,7 +228,7 @@ void MainWindow::newConnection(int socketDescriptor)
 {
 	//Handle New Connection
 
-	ServerThreadBundle *worker = new ServerThreadBundle();
+	ServerWorkerBundle *worker = new ServerWorkerBundle();
 
 	worker->thread = new QThread(this);
 	worker->servObj = new ServerObject(socketDescriptor, m_serializedList);

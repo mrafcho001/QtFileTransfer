@@ -25,12 +25,12 @@ class QProgressBar;
 class QFrame;
 class QThread;
 
-class ProgressBarBundleServer
+class ServerUIBundle
 {
 public:
-	ProgressBarBundleServer();
-	ProgressBarBundleServer(FileInfo* file, QString &ip, ServerObject *serverObj, QWidget *parent);
-	~ProgressBarBundleServer();
+	ServerUIBundle();
+	ServerUIBundle(FileInfo* file, QString &ip, ServerObject *serverObj, QWidget *parent);
+	~ServerUIBundle();
 
 	void insertIntoLayout(int reverse_index, QVBoxLayout *layout);
 	void removeFromLayout(QVBoxLayout *layout);
@@ -48,13 +48,13 @@ private:
 	ServerObject *server;
 };
 
-class ServerThreadBundle
+class ServerWorkerBundle
 {
 public:
-	ServerThreadBundle() : thread(NULL), servObj(NULL), progressBar(NULL)
+	ServerWorkerBundle() : thread(NULL), servObj(NULL), progressBar(NULL)
 	{
 	}
-	~ServerThreadBundle()
+	~ServerWorkerBundle()
 	{
 		if(thread) delete thread;
 		if(servObj) delete servObj;
@@ -63,7 +63,7 @@ public:
 
 	QThread *thread;
 	ServerObject *servObj;
-	ProgressBarBundleServer *progressBar;
+	ServerUIBundle *progressBar;
 };
 
 class MainWindow : public QMainWindow
@@ -102,8 +102,8 @@ private:
 
 	QSettings *settings;
 
-	QHash<ServerObject*,ServerThreadBundle*> workerHash;
-	QQueue<ServerThreadBundle*> toRemove;
+	QHash<ServerObject*,ServerWorkerBundle*> workerHash;
+	QQueue<ServerWorkerBundle*> toRemove;
 
 };
 

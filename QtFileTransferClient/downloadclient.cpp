@@ -2,25 +2,31 @@
 #include <QTcpSocket>
 #include <QFile>
 #include <QDir>
+#include <QTime>
 #include "../fileinfo.h"
 #include "../sharedstructures.h"
 
 DownloadClient::DownloadClient(QObject *parent) :
-	QObject(parent), m_currentMode(IDLE), m_socket(NULL), m_outFile(NULL), m_fileInfo(NULL), m_bytesDownloaded(0)
+	QObject(parent), m_currentMode(SETUP), m_socket(NULL), m_outFile(NULL), m_fileInfo(NULL), m_bytesDownloaded(0)
 {
 }
 
 DownloadClient::DownloadClient(FileInfo *fileInfo, QObject *parent) :
-	QObject(parent),m_currentMode(IDLE), m_socket(NULL), m_outFile(NULL), m_bytesDownloaded(0)
+	QObject(parent),m_currentMode(SETUP), m_socket(NULL), m_outFile(NULL), m_bytesDownloaded(0)
 {
-	m_fileInfo = fileInfo;
+	m_fileInfo = new FileInfo(*fileInfo);
+}
+
+DownloadClient::~DownloadClient()
+{
+	delete m_fileInfo;
 }
 
 bool DownloadClient::setRequestFile(FileInfo* file)
 {
-	if(m_currentMode == IDLE)
+	if(m_currentMode == SETUP)
 	{
-		m_fileInfo = file;
+		m_fileInfo = new FileInfo(*file);
 		return true;
 	}
 	return false;
@@ -28,7 +34,7 @@ bool DownloadClient::setRequestFile(FileInfo* file)
 
 bool DownloadClient::setServerAddress(QHostAddress addr, quint16 port)
 {
-	if(m_currentMode == IDLE)
+	if(m_currentMode == SETUP)
 	{
 		m_serverAddress = addr;
 		m_serverPort = port;
@@ -39,7 +45,7 @@ bool DownloadClient::setServerAddress(QHostAddress addr, quint16 port)
 
 bool DownloadClient::setSaveDirectory(QString &dir)
 {
-	if(m_currentMode == IDLE)
+	if(m_currentMode == SETUP)
 	{
 		m_saveDirectory = dir;
 		return true;
@@ -54,7 +60,7 @@ void DownloadClient::beginDownload()
 		qCritical() << "No File selected for downloading. Action canceled.";
 		return;
 	}
-	if(m_currentMode != IDLE)
+	if(m_currentMode != SETUP)
 	{
 		qCritical() << "File transfer already in progress. Action canceled";
 		return;
@@ -91,6 +97,7 @@ void DownloadClient::responseHandle()
 
 	if(response.message == FILE_DOWNLOAD_REQUEST_REJECTED)
 	{
+		m_currentMode = REJECTED;
 		qCritical() << "File Request denied.";
 		m_socket->close();
 		return;
@@ -101,16 +108,25 @@ void DownloadClient::responseHandle()
 
 	m_currentMode = DOWNLOADING;
 	m_bytesDownloaded = 0;
-	emit fileTransferBeginning(m_fileInfo, this);
 
-	if(m_socket->bytesAvailable() > 0)
-		dataReceive();
+	m_speedTimer = new QTime();
+
+	m_uiTimer = new QTimer();
+	connect(m_uiTimer, SIGNAL(timeout()), this, SLOT(triggerUIupdate()));
+	m_uiTimer->start(750);
+
+	emit fileTransferBeginning(m_fileInfo, this);
 }
 
 void DownloadClient::dataReceive()
 {
-	m_bytesDownloaded += m_outFile->write(m_socket->readAll());
-	emit fileTransferUpdate(m_bytesDownloaded, this);
+
+	qint64 bytesWriten = m_outFile->write(m_socket->readAll());
+
+	updateSpeed(bytesWriten, m_speedTimer->elapsed());
+	m_speedTimer->restart();
+
+	m_bytesDownloaded += bytesWriten;
 
 	if(m_bytesDownloaded >= m_fileInfo->getSize())
 		completeAndClose();
@@ -140,6 +156,8 @@ void DownloadClient::connectedHandle()
 
 void DownloadClient::disconnectedHandle()
 {
+	if(m_uiTimer) delete m_uiTimer;
+	if(m_speedTimer) delete m_speedTimer;
 	if(m_outFile) delete m_outFile;
 	if(m_socket)  m_socket->deleteLater();
 	emit finished();
@@ -189,4 +207,28 @@ bool DownloadClient::completeAndClose()
 	m_socket->write((char*)&msg, sizeof(msg));
 	m_socket->close();
 	return true;
+}
+
+void DownloadClient::updateSpeed(int bytes_sent, int ms)
+{
+	m_headIndex = (m_headIndex+1)%DOWNLOADRATE_HISTORY_SIZE;
+
+	//Add new bytes to total and remove the tail bytes
+	m_runningByteTotal += bytes_sent - m_byteHistory[m_headIndex];
+	m_runningTimeTotal += ms - m_timeHistory[m_headIndex];
+
+	//update the head bytes
+	m_byteHistory[m_headIndex] = bytes_sent;
+	m_timeHistory[m_headIndex] = ms;
+}
+
+double DownloadClient::getSpeed()
+{
+	return (m_runningByteTotal/1024.0)/(m_runningTimeTotal/1000.0);
+}
+
+
+void DownloadClient::triggerUIupdate()
+{
+	emit fileTransferUpdate(m_bytesDownloaded, getSpeed(), this);
 }

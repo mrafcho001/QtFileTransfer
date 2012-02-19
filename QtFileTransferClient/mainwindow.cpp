@@ -14,75 +14,104 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QHBoxLayout>
+#include <QCloseEvent>
+#include <QGridLayout>
 
-ProgressBarBundleClient::ProgressBarBundleClient()
+ClientUIBundle::ClientUIBundle():
+	layout(NULL), pbProgress(NULL), lblFilName(NULL), lblSpeed(NULL), hLine(NULL),
+	pbAction(NULL), file(NULL), client(NULL)
 {
-	bar = NULL;
-	label = NULL;
-	file = NULL;
-	client = NULL;
-	restart = NULL;
-	hbox = NULL;
 }
 
-ProgressBarBundleClient::ProgressBarBundleClient(FileInfo* file, DownloadClient *clientObj,
+ClientUIBundle::ClientUIBundle(FileInfo* file, DownloadClient *clientObj,
 												 QWidget *parent)
 {
 	this->file = file;
 	client = clientObj;
-	label = new QLabel(file->getName(), parent);
-	bar = new QProgressBar(parent);
-	bar->setMaximum(file->getSize());
-	bar->setValue(0);
-	bar->setTextVisible(true);
+
+	layout = new QGridLayout(parent);
+
+
+	lblFilName = new QLabel(file->getName(), parent);
+	layout->addWidget(lblFilName, 0, 0, 1, 2);
+
+	pbProgress = new QProgressBar(parent);
+	pbProgress->setMaximum(file->getSize());
+	pbProgress->setValue(0);
+	pbProgress->setTextVisible(true);
+	layout->addWidget(pbProgress, 1, 0);
+
+	pbAction = new QToolButton(parent);
+	pbAction->setIcon(QIcon(QString(":/icons/stop.png")));
+	layout->addWidget(pbAction, 1, 1);
+
+	lblSpeed = new QLabel("Speed: 0 Kb/s");
+	layout->addWidget(lblSpeed, 2, 0, 1, 2);
+
 	hLine = new QFrame(parent);
 	hLine->setFrameShape(QFrame::HLine);
-	restart = new QToolButton(parent);
-	restart->setIcon(QIcon(QString(":/icons/stop.png")));
-
-	hbox = new QHBoxLayout();
-	hbox->addWidget(bar);
-	hbox->addWidget(restart);
-	hbox->setStretch(0, 1000);
-	hbox->setStretch(1,1);
+	layout->addWidget(hLine, 3, 0, 1, 2);
 }
 
-ProgressBarBundleClient::~ProgressBarBundleClient()
+ClientUIBundle::~ClientUIBundle()
 {
-	if(bar) delete bar;
-	if(label) delete label;
-	if(hLine) delete hLine;
-	if(restart) delete restart;
-	if(hbox) delete hbox;
+	clearLayout(layout);
+	delete layout;
 }
 
-void ProgressBarBundleClient::insertIntoLayout(int reverse_index, QVBoxLayout *layout)
+void ClientUIBundle::insertIntoLayout(int reverse_index, QVBoxLayout *parentLayout)
 {
-	layout->insertWidget(layout->count()-reverse_index, label);
-	//layout->insertWidget(layout->count()-reverse_index, bar);
-	layout->insertLayout(layout->count()-reverse_index, hbox);
-	//layout->insertWidget(layout->count()-reverse_index, restart);
-	layout->insertWidget(layout->count()-reverse_index, hLine);
+	parentLayout->insertLayout(layout->count()-reverse_index, this->layout);
 }
 
-void ProgressBarBundleClient::removeFromLayout(QVBoxLayout *layout)
+void ClientUIBundle::removeFromLayout(QVBoxLayout *parentLayout)
 {
-	layout->removeWidget(label);
-	//layout->removeWidget(bar);
-	layout->removeWidget(hLine);
-	//layout->removeWidget(restart);
-	layout->removeItem(hbox);
-
-	delete bar; bar = NULL;
-	delete label; label = NULL;
-	delete hLine; hLine = NULL;
-	delete restart; restart = NULL;
-	delete hbox; hbox = NULL;
+	parentLayout->removeItem(this->layout);
 }
 
-void ProgressBarBundleClient::update(qint64 value)
+void ClientUIBundle::update(qint64 value, double speed)
 {
-	bar->setValue(value);
+	pbProgress->setValue(value);
+	lblSpeed->setText(QString("Speed: %1 Kb/s").arg(speed, 0, 'f', 2));
+}
+
+void ClientUIBundle::setFinished()
+{
+	layout->removeWidget(pbAction);
+	pbProgress->setValue(pbProgress->maximum());
+}
+
+void ClientUIBundle::setAborted()
+{
+	pbAction->setIcon(QIcon(":/icons/restart.png"));
+	lblSpeed->setText(QString("Download Aborted"));
+}
+
+
+QToolButton* ClientUIBundle::getActionButton()
+{
+	return pbAction;
+}
+
+void ClientUIBundle::clearLayout(QLayout *layout)
+{
+	QLayoutItem *item;
+	while((item = layout->takeAt(0)))
+	{
+		if(item->layout())
+		{
+			clearLayout(item->layout());
+			delete item->layout();
+		}
+		else if(item->widget())
+		{
+			delete item->widget();
+		}
+		else if(item->spacerItem())
+		{
+			delete item->spacerItem();
+		}
+	}
 }
 
 MainWindow::MainWindow(QWidget *parent) :
@@ -117,6 +146,20 @@ MainWindow::~MainWindow()
 {
 	delete settings;
 	delete ui;
+}
+
+void MainWindow::closeEvent(QCloseEvent *event)
+{
+	emit cleanUpThreads();
+
+	QHashIterator<DownloadClient*,DownloadWorkerBundle*> iter(workerHash);
+	while(iter.hasNext())
+	{
+		//This should wait for thread to quit properly
+		delete iter.value();
+	}
+
+	event->setAccepted(true);
 }
 
 void MainWindow::downloadFileList()
@@ -154,32 +197,38 @@ void MainWindow::requestFileDownload()
 		return;
 
 	FileInfo *file = static_cast<FileInfo*>(modelIndex.internalPointer());
-	if(!file)
+	if(!file || file->isDir())
 		return;
 
-	DownloadClient *client = new DownloadClient(file);
+	DownloadWorkerBundle *worker;
+	worker->client = new DownloadClient(file);
 
-	if(!getServerAddress(&serverAddress))
-		return;
+	worker->client->setServerAddress(serverAddress, DEFAULT_SERVER_LISTEN_PORT);
+	worker->client->setSaveDirectory(downloadDir);
 
-	client->setServerAddress(serverAddress, DEFAULT_SERVER_LISTEN_PORT);
-	client->setSaveDirectory(downloadDir);
+	worker->thread = new QThread(this);
 
-	QThread *thread = new QThread(this);
+	worker->client->moveToThread(worker->thread);
 
-	client->moveToThread(thread);
-
-	connect(client, SIGNAL(fileTransferBeginning(FileInfo*,DownloadClient*)),
+	connect(worker->client, SIGNAL(fileTransferBeginning(FileInfo*,DownloadClient*)),
 			this, SLOT(fileTransferStarted(FileInfo*,DownloadClient*)));
-	connect(client, SIGNAL(fileTransferUpdate(qint64,DownloadClient*)),
-			this, SLOT(fileTransferUpdated(qint64,DownloadClient*)));
-	connect(client, SIGNAL(fileTransferComplete(DownloadClient*)),
+
+	connect(worker->client, SIGNAL(fileTransferUpdate(qint64,double,DownloadClient*)),
+			this, SLOT(fileTransferUpdated(qint64,double,DownloadClient*)));
+
+	connect(worker->client, SIGNAL(fileTransferComplete(DownloadClient*)),
 			this, SLOT(fileTransferCompleted(DownloadClient*)));
 
-	connect(thread, SIGNAL(started()), client, SLOT(beginDownload()));
-	connect(client, SIGNAL(finished()), thread, SLOT(quit()));
+	connect(worker->client, SIGNAL(fileTransferAborted(qint64,DownloadClient*)),
+			this, SLOT(fileTransferAborted(qint64,DownloadClient*)));
 
-	thread->start();
+	connect(worker->thread, SIGNAL(started()), worker->client, SLOT(beginDownload()));
+
+	connect(worker->client, SIGNAL(finished()), worker->thread, SLOT(quit()));
+
+	worker->thread->start();
+
+	workerHash.insert(worker->client, worker);
 }
 
 
@@ -290,38 +339,51 @@ void MainWindow::onListReceiveData()
 
 void MainWindow::fileTransferStarted(FileInfo* file, DownloadClient* dc)
 {
-	ProgressBarBundleClient *pbb = new ProgressBarBundleClient(file, dc, this);
-
-	pbb->insertIntoLayout(1, ui->vlProgressBars);
-
-	activeDownloads.insert(dc, pbb);
-}
-
-void MainWindow::fileTransferUpdated(qint64 bytes, DownloadClient *dc)
-{
-	if(!activeDownloads.contains(dc))
+	if(!workerHash.contains(dc))
 		return;
 
-	activeDownloads.value(dc)->update(bytes);
+	DownloadWorkerBundle *worker = workerHash.value(dc);
+
+	worker->ui = new ClientUIBundle(file, dc, this);
+
+	worker->ui->insertIntoLayout(1, ui->vlProgressBars);
+}
+
+void MainWindow::fileTransferUpdated(qint64 bytes, double speed, DownloadClient *dc)
+{
+	if(!workerHash.contains(dc))
+		return;
+
+	workerHash.value(dc)->ui->update(bytes, speed);
 }
 
 void MainWindow::fileTransferCompleted(DownloadClient *dc)
 {
-	toRemove.enqueue(dc);
-	QTimer::singleShot(10000, this, SLOT(removeProgresBar()));
+	if(!workerHash.contains(dc))
+		return;
+
+	workerHash.value(dc)->ui->setFinished();
+	toRemove.enqueue(workerHash.value(dc));
+	QTimer::singleShot(10000, this, SLOT(removeDownloadUI()));
 }
 
 void MainWindow::fileTransferAborted(qint64 bytes_recieved, DownloadClient *dc)
 {
+	if(!workerHash.contains(dc))
+		return;
 
+	workerHash.value(dc)->ui->setAborted();
+	//What to do now?
+	// probably connect restart button to client slot that restarts the download where it left
+	// off
 }
 
-void MainWindow::removeProgresBar()
+void MainWindow::removeDownloadUI()
 {
-	DownloadClient *obj = toRemove.dequeue();
-	activeDownloads.value(obj)->removeFromLayout(ui->vlProgressBars);
-	delete activeDownloads.value(obj);
-	activeDownloads.remove(obj);
+	DownloadWorkerBundle *worker = toRemove.dequeue();
+
+	worker->ui->removeFromLayout(ui->vlProgressBars);
+	delete worker;
 }
 
 bool MainWindow::getServerAddress(QHostAddress *addr)

@@ -225,7 +225,7 @@ void ServerObject::fileRequest(connControlMsg msg)
 
 void ServerObject::updateSpeed(int bytes_sent, int ms)
 {
-	m_headIndex = (m_headIndex+1)%HISTORY_SIZE;
+	m_headIndex = (m_headIndex+1)%DOWNLOADRATE_HISTORY_SIZE;
 
 	//Add new bytes to total and remove the tail bytes
 	m_runningByteTotal += bytes_sent - m_byteHistory[m_headIndex];

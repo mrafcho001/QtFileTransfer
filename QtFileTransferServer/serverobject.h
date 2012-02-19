@@ -72,8 +72,8 @@ private:
 	QTime *m_speedTimer;
 	int m_runningByteTotal;
 	int m_runningTimeTotal;
-	int m_byteHistory[HISTORY_SIZE];
-	int m_timeHistory[HISTORY_SIZE];
+	int m_byteHistory[DOWNLOADRATE_HISTORY_SIZE];
+	int m_timeHistory[DOWNLOADRATE_HISTORY_SIZE];
 	int m_headIndex;
 
 
