@@ -36,6 +36,8 @@ signals:
 public slots:
 
 	void beginDownload();
+	void abortFileTransfer();
+	void restartFileTransfer();
 
 private slots:
 	void responseHandle();
@@ -48,7 +50,7 @@ private slots:
 	void triggerUIupdate();
 
 private:
-	bool initFileForWriting();
+	bool initFileForWriting(qint64 pos = 0);
 	bool completeAndClose();
 
 	void updateSpeed(int bytes_sent, int ms);
@@ -73,11 +75,14 @@ private:
 	QTimer *m_uiTimer;
 
 	QTime *m_speedTimer;
+	QTime *m_avgTimer;
 	int m_runningByteTotal;
 	int m_runningTimeTotal;
 	int m_byteHistory[DOWNLOADRATE_HISTORY_SIZE];
 	int m_timeHistory[DOWNLOADRATE_HISTORY_SIZE];
 	int m_headIndex;
+
+	int m_total_time;
 
 	
 };

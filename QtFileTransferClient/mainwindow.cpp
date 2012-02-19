@@ -29,7 +29,7 @@ ClientUIBundle::ClientUIBundle(FileInfo* file, DownloadClient *clientObj,
 	this->file = file;
 	client = clientObj;
 
-	layout = new QGridLayout(parent);
+	layout = new QGridLayout(0);
 
 
 	lblFilName = new QLabel(file->getName(), parent);
@@ -44,6 +44,7 @@ ClientUIBundle::ClientUIBundle(FileInfo* file, DownloadClient *clientObj,
 	pbAction = new QToolButton(parent);
 	pbAction->setIcon(QIcon(QString(":/icons/stop.png")));
 	layout->addWidget(pbAction, 1, 1);
+	pbAction->connect(pbAction, SIGNAL(clicked()), clientObj, SLOT(abortFileTransfer()));
 
 	lblSpeed = new QLabel("Speed: 0 Kb/s");
 	layout->addWidget(lblSpeed, 2, 0, 1, 2);
@@ -85,6 +86,8 @@ void ClientUIBundle::setFinished()
 void ClientUIBundle::setAborted()
 {
 	pbAction->setIcon(QIcon(":/icons/restart.png"));
+	pbAction->disconnect();
+	pbAction->connect(pbAction, SIGNAL(clicked()), client, SLOT(restartFileTransfer()));
 	lblSpeed->setText(QString("Download Aborted"));
 }
 
@@ -349,6 +352,7 @@ void MainWindow::fileTransferStarted(FileInfo* file, DownloadClient* dc)
 	worker->ui = new ClientUIBundle(file, dc, this);
 
 	worker->ui->insertIntoLayout(1, ui->vlProgressBars);
+
 }
 
 void MainWindow::fileTransferUpdated(qint64 bytes, double speed, DownloadClient *dc)

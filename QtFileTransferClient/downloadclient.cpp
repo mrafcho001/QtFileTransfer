@@ -10,6 +10,11 @@ DownloadClient::DownloadClient(QObject *parent) :
 	QObject(parent), m_currentMode(SETUP), m_socket(NULL), m_outFile(NULL), m_fileInfo(NULL), m_bytesDownloaded(0),
 	m_runningByteTotal(0), m_runningTimeTotal(0), m_headIndex(0)
 {
+	for(int i = 0; i < DOWNLOADRATE_HISTORY_SIZE; i++)
+	{
+		m_byteHistory[i] = 0;
+		m_timeHistory[i] = 0;
+	}
 }
 
 DownloadClient::DownloadClient(FileInfo *fileInfo, QObject *parent) :
@@ -17,6 +22,11 @@ DownloadClient::DownloadClient(FileInfo *fileInfo, QObject *parent) :
 	m_runningByteTotal(0), m_runningTimeTotal(0), m_headIndex(0)
 {
 	m_fileInfo = new FileInfo(*fileInfo);
+	for(int i = 0; i < DOWNLOADRATE_HISTORY_SIZE; i++)
+	{
+		m_byteHistory[i] = 0;
+		m_timeHistory[i] = 0;
+	}
 }
 
 DownloadClient::~DownloadClient()
@@ -62,7 +72,7 @@ void DownloadClient::beginDownload()
 		qCritical() << "No File selected for downloading. Action canceled.";
 		return;
 	}
-	if(m_currentMode != SETUP)
+	if(m_currentMode != SETUP && m_currentMode != ABORTED)
 	{
 		qCritical() << "File transfer already in progress. Action canceled";
 		return;
@@ -85,6 +95,19 @@ void DownloadClient::beginDownload()
 	m_socket->connectToHost(m_serverAddress, m_serverPort);
 }
 
+void DownloadClient::abortFileTransfer()
+{
+	m_socket->close();
+	m_currentMode = ABORTED;
+	emit fileTransferAborted(m_bytesDownloaded, this);
+}
+
+void DownloadClient::restartFileTransfer()
+{
+	initFileForWriting(m_bytesDownloaded);
+	beginDownload();
+}
+
 void DownloadClient::responseHandle()
 {
 	if(m_socket->bytesAvailable() < (qint64)sizeof(connControlMsg))
@@ -97,7 +120,8 @@ void DownloadClient::responseHandle()
 	connControlMsg response;
 	m_socket->read((char*)&response, sizeof(response));
 
-	if(response.message == FILE_DOWNLOAD_REQUEST_REJECTED)
+	if(response.message == FILE_DOWNLOAD_REQUEST_REJECTED
+			|| response.message == PARTIAL_FILE_REQUEST_REJECTED)
 	{
 		m_currentMode = REJECTED;
 		qCritical() << "File Request denied.";
@@ -109,15 +133,17 @@ void DownloadClient::responseHandle()
 	connect(m_socket, SIGNAL(readyRead()), this, SLOT(dataReceive()));
 
 	m_currentMode = DOWNLOADING;
-	m_bytesDownloaded = 0;
 
 	m_speedTimer = new QTime();
 
 	m_uiTimer = new QTimer();
+	m_avgTimer = new QTime();
+	m_avgTimer->restart();
 	connect(m_uiTimer, SIGNAL(timeout()), this, SLOT(triggerUIupdate()));
 	m_uiTimer->start(750);
 
-	emit fileTransferBeginning(m_fileInfo, this);
+	if(m_bytesDownloaded == 0)
+		emit fileTransferBeginning(m_fileInfo, this);
 }
 
 void DownloadClient::dataReceive()
@@ -146,6 +172,7 @@ void DownloadClient::connectedHandle()
 
 	connControlMsg msg;
 	msg.message = REQUEST_FILE_DOWNLOAD;
+	msg.pos = m_bytesDownloaded;
 	memcpy(msg.sha1_id, m_fileInfo->getHash().constData(), SHA1_BYTECOUNT);
 
 	m_socket->write((char*)&msg, sizeof(msg));
@@ -160,6 +187,7 @@ void DownloadClient::disconnectedHandle()
 {
 	if(m_uiTimer) delete m_uiTimer;
 	if(m_speedTimer) delete m_speedTimer;
+	if(m_avgTimer) delete m_avgTimer;
 	if(m_outFile) delete m_outFile;
 	if(m_socket)  m_socket->deleteLater();
 	emit finished();
@@ -186,7 +214,7 @@ void DownloadClient::errorHandle(QAbstractSocket::SocketError err)
 	}
 }
 
-bool DownloadClient::initFileForWriting()
+bool DownloadClient::initFileForWriting(qint64 pos)
 {
 	QDir dir(m_saveDirectory);
 	if(!dir.exists())
@@ -194,11 +222,19 @@ bool DownloadClient::initFileForWriting()
 
 	m_outFile = new QFile(dir.absoluteFilePath(m_fileInfo->getName()));
 
-	return m_outFile->open(QIODevice::ReadWrite);
+	if(m_outFile->open(QIODevice::ReadWrite))
+	{
+		m_outFile->seek(pos);
+		return true;
+	}
+	return false;
 }
 
 bool DownloadClient::completeAndClose()
 {
+	m_total_time = m_avgTimer->elapsed();
+
+	emit fileTransferUpdate(m_bytesDownloaded, (m_bytesDownloaded/1024.0)/(m_total_time/1000.0), this);
 	m_outFile->close();
 	emit fileTransferComplete(this);
 
