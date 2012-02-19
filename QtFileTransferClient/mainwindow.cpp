@@ -61,7 +61,7 @@ ClientUIBundle::~ClientUIBundle()
 
 void ClientUIBundle::insertIntoLayout(int reverse_index, QVBoxLayout *parentLayout)
 {
-	parentLayout->insertLayout(layout->count()-reverse_index, this->layout);
+	parentLayout->insertLayout(parentLayout->count()-reverse_index, this->layout);//->insertLayout(layout->count()-reverse_index, this->layout);
 }
 
 void ClientUIBundle::removeFromLayout(QVBoxLayout *parentLayout)
@@ -200,7 +200,7 @@ void MainWindow::requestFileDownload()
 	if(!file || file->isDir())
 		return;
 
-	DownloadWorkerBundle *worker;
+	DownloadWorkerBundle *worker = new DownloadWorkerBundle();
 	worker->client = new DownloadClient(file);
 
 	worker->client->setServerAddress(serverAddress, DEFAULT_SERVER_LISTEN_PORT);
