@@ -40,10 +40,10 @@ public slots:
 	void restartFileTransfer();
 
 private slots:
+	void connectedHandle();
 	void responseHandle();
 	void dataReceive();
 
-	void connectedHandle();
 	void disconnectedHandle();
 	void errorHandle(QAbstractSocket::SocketError err);
 
@@ -51,7 +51,11 @@ private slots:
 
 private:
 	bool initFileForWriting(qint64 pos = 0);
+	bool checkInit();
 	bool completeAndClose();
+
+	bool abortedCleanUp();
+	bool cleanAndExit();
 
 	void updateSpeed(int bytes_sent, int ms);
 	double getSpeed();

@@ -352,7 +352,6 @@ void MainWindow::fileTransferStarted(FileInfo* file, DownloadClient* dc)
 	worker->ui = new ClientUIBundle(file, dc, this);
 
 	worker->ui->insertIntoLayout(1, ui->vlProgressBars);
-
 }
 
 void MainWindow::fileTransferUpdated(qint64 bytes, double speed, DownloadClient *dc)
@@ -378,6 +377,7 @@ void MainWindow::fileTransferAborted(qint64 bytes_recieved, DownloadClient *dc)
 	if(!workerHash.contains(dc))
 		return;
 
+	workerHash.value(dc)->ui->update(bytes_recieved, 0.0);
 	workerHash.value(dc)->ui->setAborted();
 	//What to do now?
 	// probably connect restart button to client slot that restarts the download where it left

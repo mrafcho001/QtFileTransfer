@@ -67,27 +67,10 @@ bool DownloadClient::setSaveDirectory(QString &dir)
 
 void DownloadClient::beginDownload()
 {
-	if(m_fileInfo == NULL)
-	{
-		qCritical() << "No File selected for downloading. Action canceled.";
-		return;
-	}
-	if(m_currentMode != SETUP && m_currentMode != ABORTED)
-	{
-		qCritical() << "File transfer already in progress. Action canceled";
-		return;
-	}
-	if(m_saveDirectory.isEmpty())
-	{
-		qCritical() << "No save directory set. Action canceled.";
-		return;
-	}
+	m_bytesDownloaded = 0;
 
-	if(!initFileForWriting())
-	{
-		qCritical() << "Could not create file for writing. Action canceled.";
+	if(!checkInit())
 		return;
-	}
 
 	m_socket = new QTcpSocket();
 
@@ -97,8 +80,8 @@ void DownloadClient::beginDownload()
 
 void DownloadClient::abortFileTransfer()
 {
-	m_socket->close();
 	m_currentMode = ABORTED;
+	m_socket->close();
 	emit fileTransferAborted(m_bytesDownloaded, this);
 }
 
@@ -106,6 +89,28 @@ void DownloadClient::restartFileTransfer()
 {
 	initFileForWriting(m_bytesDownloaded);
 	beginDownload();
+}
+
+void DownloadClient::connectedHandle()
+{
+	if(!m_socket->isValid())
+	{
+		qCritical() << "Could not connect to server.  Action canceled.";
+		return;
+	}
+
+	connControlMsg msg;
+	msg.message = (m_currentMode==ABORTED) ? REQUEST_PARTIAL_FILE : REQUEST_FILE_DOWNLOAD;
+	msg.pos = m_bytesDownloaded;
+	memcpy(msg.sha1_id, m_fileInfo->getHash().constData(), SHA1_BYTECOUNT);
+
+	m_currentMode = REQUEST_PENDING;
+	m_socket->write((char*)&msg, sizeof(msg));
+
+	connect(m_socket, SIGNAL(readyRead()), this, SLOT(responseHandle()));
+	connect(m_socket, SIGNAL(disconnected()), this, SLOT(disconnectedHandle()));
+	connect(m_socket, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(errorHandle(QAbstractSocket::SocketError)));
+
 }
 
 void DownloadClient::responseHandle()
@@ -134,21 +139,24 @@ void DownloadClient::responseHandle()
 
 	m_currentMode = DOWNLOADING;
 
-	m_speedTimer = new QTime();
-
 	m_uiTimer = new QTimer();
-	m_avgTimer = new QTime();
-	m_avgTimer->restart();
 	connect(m_uiTimer, SIGNAL(timeout()), this, SLOT(triggerUIupdate()));
 	m_uiTimer->start(750);
 
+	m_speedTimer = new QTime();
+	m_speedTimer->restart();
+
+	m_avgTimer = new QTime();
+	m_avgTimer->restart();
+
 	if(m_bytesDownloaded == 0)
 		emit fileTransferBeginning(m_fileInfo, this);
+	else
+		emit fileTransferResumed(m_bytesDownloaded, this);
 }
 
 void DownloadClient::dataReceive()
 {
-
 	qint64 bytesWriten = m_outFile->write(m_socket->readAll());
 
 	updateSpeed(bytesWriten, m_speedTimer->elapsed());
@@ -160,31 +168,9 @@ void DownloadClient::dataReceive()
 		completeAndClose();
 }
 
-void DownloadClient::connectedHandle()
-{
-	if(!m_socket->isValid())
-	{
-		qCritical() << "Could not connect to server.  Action canceled.";
-		return;
-	}
-
-	m_currentMode = REQUEST_PENDING;
-
-	connControlMsg msg;
-	msg.message = REQUEST_FILE_DOWNLOAD;
-	msg.pos = m_bytesDownloaded;
-	memcpy(msg.sha1_id, m_fileInfo->getHash().constData(), SHA1_BYTECOUNT);
-
-	m_socket->write((char*)&msg, sizeof(msg));
-
-	connect(m_socket, SIGNAL(readyRead()), this, SLOT(responseHandle()));
-	//connect(m_socket, SIGNAL(disconnected()), this, SLOT(disconnectedHandle()));
-	connect(m_socket, SIGNAL(error(QAbstractSocket::SocketError)), this, SLOT(errorHandle(QAbstractSocket::SocketError)));
-
-}
-
 void DownloadClient::disconnectedHandle()
 {
+	qDebug() << "disconnectedHandle()";
 	if(m_uiTimer) delete m_uiTimer;
 	if(m_speedTimer) delete m_speedTimer;
 	if(m_avgTimer) delete m_avgTimer;
@@ -195,6 +181,7 @@ void DownloadClient::disconnectedHandle()
 
 void DownloadClient::errorHandle(QAbstractSocket::SocketError err)
 {
+	qDebug() << "errorHandle()";
 	if(err == QAbstractSocket::RemoteHostClosedError
 			|| err == QAbstractSocket::NetworkError
 			|| err == QAbstractSocket::UnknownSocketError)
@@ -228,6 +215,32 @@ bool DownloadClient::initFileForWriting(qint64 pos)
 		return true;
 	}
 	return false;
+}
+
+bool DownloadClient::checkInit()
+{
+	if(m_fileInfo == NULL)
+	{
+		qCritical() << "No File selected for downloading. Action canceled.";
+		return false;
+	}
+	if(m_currentMode != SETUP && m_currentMode != ABORTED)
+	{
+		qCritical() << "File transfer already in progress. Action canceled";
+		return false;
+	}
+	if(m_saveDirectory.isEmpty())
+	{
+		qCritical() << "No save directory set. Action canceled.";
+		return false;
+	}
+
+	if(!initFileForWriting(m_bytesDownloaded))
+	{
+		qCritical() << "Could not create file for writing. Action canceled.";
+		return false;
+	}
+	return true;
 }
 
 bool DownloadClient::completeAndClose()
