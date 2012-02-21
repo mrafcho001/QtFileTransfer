@@ -8,6 +8,7 @@
 
 DownloadClient::DownloadClient(QObject *parent) :
 	QObject(parent), m_currentMode(SETUP), m_socket(NULL), m_outFile(NULL), m_fileInfo(NULL), m_bytesDownloaded(0),
+	m_uiTimer(NULL), m_uiUpdateInterval(750), m_speedTimer(NULL), m_avgTimer(NULL),
 	m_runningByteTotal(0), m_runningTimeTotal(0), m_headIndex(0)
 {
 	for(int i = 0; i < DOWNLOADRATE_HISTORY_SIZE; i++)
@@ -18,7 +19,8 @@ DownloadClient::DownloadClient(QObject *parent) :
 }
 
 DownloadClient::DownloadClient(FileInfo *fileInfo, QObject *parent) :
-	QObject(parent),m_currentMode(SETUP), m_socket(NULL), m_outFile(NULL), m_bytesDownloaded(0),
+	QObject(parent), m_currentMode(SETUP), m_socket(NULL), m_outFile(NULL), m_bytesDownloaded(0),
+	m_uiTimer(NULL), m_uiUpdateInterval(750), m_speedTimer(NULL), m_avgTimer(NULL),
 	m_runningByteTotal(0), m_runningTimeTotal(0), m_headIndex(0)
 {
 	m_fileInfo = new FileInfo(*fileInfo);
@@ -32,6 +34,9 @@ DownloadClient::DownloadClient(FileInfo *fileInfo, QObject *parent) :
 DownloadClient::~DownloadClient()
 {
 	delete m_fileInfo;
+	delete m_uiTimer;
+	delete m_speedTimer;
+	delete m_avgTimer;
 }
 
 bool DownloadClient::setRequestFile(FileInfo* file)
@@ -64,6 +69,39 @@ bool DownloadClient::setSaveDirectory(QString &dir)
 	}
 	return false;
 }
+bool DownloadClient::setUpdateInterval(int ms)
+{
+	if(ms < 100)
+		ms = 100;
+
+	m_uiUpdateInterval = ms;
+
+	if(m_uiTimer)
+	{
+		if(m_uiTimer->isActive())
+		{
+			m_uiTimer->setInterval(ms);
+		}
+	}
+}
+
+double DownloadClient::getCurrentSpeed()
+{
+	return getSpeed();
+}
+
+int DownloadClient::timeDownloading() // in ms
+{
+	if(!m_avgTimer)
+		return 0;
+
+	return m_avgTimer->elapsed();
+}
+
+int DownloadClient::timeRemaining()	// in ms
+{
+	return (int)(((m_fileInfo->getSize()-m_bytesDownloaded)/1024.0)/getSpeed()*1000);
+}
 
 void DownloadClient::beginDownload()
 {
@@ -72,10 +110,7 @@ void DownloadClient::beginDownload()
 	if(!checkInit())
 		return;
 
-	m_socket = new QTcpSocket();
-
-	connect(m_socket, SIGNAL(connected()), this, SLOT(connectedHandle()));
-	m_socket->connectToHost(m_serverAddress, m_serverPort);
+	connectSocket();
 }
 
 void DownloadClient::abortFileTransfer()
@@ -85,10 +120,15 @@ void DownloadClient::abortFileTransfer()
 	emit fileTransferAborted(m_bytesDownloaded, this);
 }
 
-void DownloadClient::restartFileTransfer()
+void DownloadClient::resumeFileTransfer()
 {
-	initFileForWriting(m_bytesDownloaded);
-	beginDownload();
+	//qDebug() << "Resuming File Download";
+
+	if(!checkInit())
+		return;
+
+	connectSocket();
+	emit fileTransferResumed(this);
 }
 
 void DownloadClient::connectedHandle()
@@ -139,20 +179,18 @@ void DownloadClient::responseHandle()
 
 	m_currentMode = DOWNLOADING;
 
-	m_uiTimer = new QTimer();
+	if(!m_uiTimer) m_uiTimer = new QTimer();
 	connect(m_uiTimer, SIGNAL(timeout()), this, SLOT(triggerUIupdate()));
 	m_uiTimer->start(750);
 
-	m_speedTimer = new QTime();
+	if(!m_speedTimer) m_speedTimer = new QTime();
 	m_speedTimer->restart();
 
-	m_avgTimer = new QTime();
+	if(!m_avgTimer) m_avgTimer = new QTime();
 	m_avgTimer->restart();
 
 	if(m_bytesDownloaded == 0)
 		emit fileTransferBeginning(m_fileInfo, this);
-	else
-		emit fileTransferResumed(m_bytesDownloaded, this);
 }
 
 void DownloadClient::dataReceive()
@@ -170,35 +208,53 @@ void DownloadClient::dataReceive()
 
 void DownloadClient::disconnectedHandle()
 {
-	qDebug() << "disconnectedHandle()";
-	if(m_uiTimer) delete m_uiTimer;
-	if(m_speedTimer) delete m_speedTimer;
-	if(m_avgTimer) delete m_avgTimer;
+	//qDebug() << "disconnectedHandle()";
+	if(m_uiTimer)
+	{
+		m_uiTimer->stop();
+		m_uiTimer->disconnect();
+	}
+
 	if(m_outFile) delete m_outFile;
 	if(m_socket)  m_socket->deleteLater();
-	emit finished();
+
+	if(m_currentMode != ABORTED
+			&& m_bytesDownloaded == m_fileInfo->getSize())
+	{
+		emit finished();
+	}
 }
 
 void DownloadClient::errorHandle(QAbstractSocket::SocketError err)
 {
-	qDebug() << "errorHandle()";
+	//qDebug() << "errorHandle()";
 	if(err == QAbstractSocket::RemoteHostClosedError
 			|| err == QAbstractSocket::NetworkError
 			|| err == QAbstractSocket::UnknownSocketError)
 	{
-		m_socket->close();
-		m_socket->deleteLater();
+		m_socket->disconnect();
+
 		if(m_outFile)
 		{
 			if(m_outFile->pos() < m_fileInfo->getSize())
 			{
+				m_currentMode = ABORTED;
 				emit fileTransferAborted(m_outFile->pos(), this);
 			}
-			m_outFile->close();
-			delete m_outFile;
 		}
-		emit finished();
+
+		disconnectedHandle();
+
+		//emit finished();
 	}
+}
+
+void DownloadClient::connectSocket()
+{
+	m_socket = new QTcpSocket();
+
+	connect(m_socket, SIGNAL(connected()), this, SLOT(connectedHandle()));
+	m_socket->connectToHost(m_serverAddress, m_serverPort);
 }
 
 bool DownloadClient::initFileForWriting(qint64 pos)
@@ -255,6 +311,7 @@ bool DownloadClient::completeAndClose()
 	msg.message = FILE_COMPLETED;
 	memcpy(msg.sha1_id, m_fileInfo->getHash().constData(), SHA1_BYTECOUNT);
 
+	disconnect(m_socket, SIGNAL(bytesWritten(qint64)), 0, 0);
 	m_socket->write((char*)&msg, sizeof(msg));
 	m_socket->close();
 	return true;

@@ -22,6 +22,11 @@
 #define CONN_CONTROL_REQUEST_PARTIAL_FILE_DOWNLOAD	0x016
 #define CONN_CONTROL_FILE_COMPLETE			0x128
 
+
+#define MS_TO_S(x) (((x)/1000)%60)
+#define MS_TO_M(x) (((x)/(1000*60))%60)
+#define MS_TO_H(x) (((x)/(1000*60*60))%60)
+
 enum ConnectionControl { REQUEST_FILE_LIST = 1,
 						 LIST_REQUEST_GRANTED = (1<<1),
 						 LIST_REQUEST_REJECTED = (1<<2),

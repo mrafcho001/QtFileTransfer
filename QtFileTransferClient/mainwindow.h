@@ -37,6 +37,7 @@ public:
 
 	void setFinished();
 	void setAborted();
+	void setResumed();
 
 	QToolButton *getActionButton();
 
@@ -48,6 +49,8 @@ private:
 	QProgressBar *pbProgress;
 	QLabel *lblFilName;
 	QLabel *lblSpeed;
+	QLabel *lblTimeDownloading;
+	QLabel *lblTimeRemaining;
 	QFrame *hLine;
 	QToolButton *pbAction;
 
@@ -100,6 +103,7 @@ public slots:
 	void fileTransferUpdated(qint64 bytes, double speed, DownloadClient *dc);
 	void fileTransferCompleted(DownloadClient *dc);
 	void fileTransferAborted(qint64 bytes_recieved, DownloadClient *dc);
+	void fileTransferResumed(DownloadClient *dc);
 
 	void removeDownloadUI();
 

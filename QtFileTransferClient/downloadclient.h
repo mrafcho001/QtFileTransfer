@@ -23,6 +23,11 @@ public:
 	bool setRequestFile(FileInfo* file);
 	bool setServerAddress(QHostAddress addr, quint16 port);
 	bool setSaveDirectory(QString &dir);
+	bool setUpdateInterval(int ms);
+
+	double getCurrentSpeed();
+	int timeDownloading(); // in ms
+	int timeRemaining();	// in ms
 	
 signals:
 
@@ -30,6 +35,7 @@ signals:
 	void fileTransferUpdate(qint64 bytes_recieved, double speed, DownloadClient *dc);
 	void fileTransferComplete(DownloadClient *dc);
 	void fileTransferAborted(qint64 bytes_recieved, DownloadClient *dc);
+	void fileTransferResumed(DownloadClient *dc);
 
 	void finished();
 	
@@ -37,7 +43,7 @@ public slots:
 
 	void beginDownload();
 	void abortFileTransfer();
-	void restartFileTransfer();
+	void resumeFileTransfer();
 
 private slots:
 	void connectedHandle();
@@ -50,6 +56,7 @@ private slots:
 	void triggerUIupdate();
 
 private:
+	void connectSocket();
 	bool initFileForWriting(qint64 pos = 0);
 	bool checkInit();
 	bool completeAndClose();
@@ -77,6 +84,7 @@ private:
 
 
 	QTimer *m_uiTimer;
+	unsigned int m_uiUpdateInterval;
 
 	QTime *m_speedTimer;
 	QTime *m_avgTimer;

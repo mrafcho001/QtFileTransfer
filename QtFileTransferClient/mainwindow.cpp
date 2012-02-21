@@ -33,25 +33,31 @@ ClientUIBundle::ClientUIBundle(FileInfo* file, DownloadClient *clientObj,
 
 
 	lblFilName = new QLabel(file->getName(), parent);
-	layout->addWidget(lblFilName, 0, 0, 1, 2);
+	layout->addWidget(lblFilName, 0, 0, 1, 3);
 
 	pbProgress = new QProgressBar(parent);
 	pbProgress->setMaximum(file->getSize());
 	pbProgress->setValue(0);
 	pbProgress->setTextVisible(true);
-	layout->addWidget(pbProgress, 1, 0);
+	layout->addWidget(pbProgress, 1, 0, 1, 3);
 
 	pbAction = new QToolButton(parent);
 	pbAction->setIcon(QIcon(QString(":/icons/stop.png")));
-	layout->addWidget(pbAction, 1, 1);
+	layout->addWidget(pbAction, 1, 3);
 	pbAction->connect(pbAction, SIGNAL(clicked()), clientObj, SLOT(abortFileTransfer()));
 
 	lblSpeed = new QLabel("Speed: 0 Kb/s");
-	layout->addWidget(lblSpeed, 2, 0, 1, 2);
+	layout->addWidget(lblSpeed, 2, 0);
+
+	lblTimeRemaining = new QLabel("Time Remaining: 00:00:00", parent);
+	layout->addWidget(lblTimeRemaining, 2, 1);
+
+	lblTimeDownloading = new QLabel("Time Downloading: 00:00:00", parent);
+	layout->addWidget(lblTimeDownloading, 2, 2);
 
 	hLine = new QFrame(parent);
 	hLine->setFrameShape(QFrame::HLine);
-	layout->addWidget(hLine, 3, 0, 1, 2);
+	layout->addWidget(hLine, 3, 0, 1, 3);
 }
 
 ClientUIBundle::~ClientUIBundle()
@@ -74,6 +80,13 @@ void ClientUIBundle::update(qint64 value, double speed)
 {
 	pbProgress->setValue(value);
 	lblSpeed->setText(QString("Speed: %1 Kb/s").arg(speed, 0, 'f', 2));
+	int ms = client->timeDownloading();
+
+	lblTimeDownloading->setText(QString("Time Downloading: %1:%2:%3").arg(MS_TO_H(ms)).arg(MS_TO_M(ms)).arg(MS_TO_S(ms)));
+
+	ms = client->timeRemaining();
+
+	lblTimeRemaining->setText(QString("Time Remaining: %1:%2:%3").arg(MS_TO_H(ms)).arg(MS_TO_M(ms)).arg(MS_TO_S(ms)));
 }
 
 void ClientUIBundle::setFinished()
@@ -81,14 +94,24 @@ void ClientUIBundle::setFinished()
 	layout->removeWidget(pbAction);
 	delete pbAction;
 	pbProgress->setValue(pbProgress->maximum());
+	lblSpeed->setText(lblSpeed->text().replace("Speed", "Avg Speed"));
 }
 
 void ClientUIBundle::setAborted()
 {
 	pbAction->setIcon(QIcon(":/icons/restart.png"));
 	pbAction->disconnect();
-	pbAction->connect(pbAction, SIGNAL(clicked()), client, SLOT(restartFileTransfer()));
+	pbAction->connect(pbAction, SIGNAL(clicked()), client, SLOT(resumeFileTransfer()));
 	lblSpeed->setText(QString("Download Aborted"));
+}
+
+
+void ClientUIBundle::setResumed()
+{
+	pbAction->setIcon(QIcon(":/icons/stop.png"));
+	pbAction->disconnect();
+	pbAction->connect(pbAction, SIGNAL(clicked()), client, SLOT(abortFileTransfer()));
+	lblSpeed->setText(QString("Download Resuming..."));
 }
 
 
@@ -210,6 +233,7 @@ void MainWindow::requestFileDownload()
 
 	worker->client->setServerAddress(serverAddress, DEFAULT_SERVER_LISTEN_PORT);
 	worker->client->setSaveDirectory(downloadDir);
+	worker->client->setUpdateInterval(300);
 
 	worker->thread = new QThread(this);
 
@@ -226,6 +250,9 @@ void MainWindow::requestFileDownload()
 
 	connect(worker->client, SIGNAL(fileTransferAborted(qint64,DownloadClient*)),
 			this, SLOT(fileTransferAborted(qint64,DownloadClient*)));
+
+	connect(worker->client, SIGNAL(fileTransferResumed(DownloadClient*)),
+			this, SLOT(fileTransferResumed(DownloadClient*)));
 
 	connect(worker->thread, SIGNAL(started()), worker->client, SLOT(beginDownload()));
 
@@ -295,7 +322,7 @@ void MainWindow::sock_error(QAbstractSocket::SocketError err)
 
 void MainWindow::sock_disconn()
 {
-	qDebug() << "No loose ends..";
+	//qDebug() << "No loose ends..";
 	disconnect(m_socket, 0,0,0);
 	m_socket->deleteLater();
 }
@@ -313,7 +340,7 @@ void MainWindow::onListReceiveData()
 			m_socket->close();
 			return;
 		}
-		qDebug() << "Received ACK";
+		//qDebug() << "Received ACK";
 		list_ack_receieved = true;
 	}
 
@@ -384,9 +411,19 @@ void MainWindow::fileTransferAborted(qint64 bytes_recieved, DownloadClient *dc)
 	// off
 }
 
+void MainWindow::fileTransferResumed(DownloadClient *dc)
+{
+	//qDebug() << "Setting UI Resumed";
+	if(!workerHash.contains(dc))
+		return;
+
+	workerHash.value(dc)->ui->setResumed();
+}
+
 void MainWindow::removeDownloadUI()
 {
 	DownloadWorkerBundle *worker = toRemove.dequeue();
+	workerHash.remove(worker->client);
 
 	worker->ui->removeFromLayout(ui->vlProgressBars);
 	delete worker;
