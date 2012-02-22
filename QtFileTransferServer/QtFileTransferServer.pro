@@ -15,7 +15,8 @@ SOURCES += main.cpp\
     serverobject.cpp \
     mytcpserver.cpp \
     ../fileinfo.cpp \
-    dirtreemodel.cpp
+    dirtreemodel.cpp \
+    ../uibundle.cpp
 
 HEADERS  += mainwindow.h \
     serverobject.h \

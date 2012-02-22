@@ -9,50 +9,28 @@
 #include <QQueue>
 #include <QHash>
 #include <QThread>
+#include "../uibundle.h"
 
 namespace Ui {
 class MainWindow;
 }
 
 //Forward class declarations
-class QProgressBar;
-class QLabel;
-class QVBoxLayout;
 class QSettings;
-class QFrame;
-class QGridLayout;
-class QToolButton;
-class QHBoxLayout;
 
-class ClientUIBundle
+class ClientUIBundle : public UIBundle
 {
 public:
 	ClientUIBundle();
 	ClientUIBundle(FileInfo* file, DownloadClient *clientObj, QWidget *parent = 0);
 	~ClientUIBundle();
 
-	void insertIntoLayout(int reverse_index, QVBoxLayout *parentLayout);
-	void removeFromLayout(QVBoxLayout *parentLayout);
 	void update(qint64 value, double speed);
 
-	void setFinished();
 	void setAborted();
 	void setResumed();
 
-	QToolButton *getActionButton();
-
 private:
-	void clearLayout(QLayout *layout);
-
-	QGridLayout *layout;
-
-	QProgressBar *pbProgress;
-	QLabel *lblFilName;
-	QLabel *lblSpeed;
-	QLabel *lblTimeDownloading;
-	QLabel *lblTimeRemaining;
-	QFrame *hLine;
-	QToolButton *pbAction;
 
 	FileInfo *file;
 	DownloadClient *client;

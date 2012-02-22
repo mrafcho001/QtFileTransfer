@@ -5,10 +5,18 @@
 #include <QTime>
 
 ServerObject::ServerObject(int sockDescriptor, QList<FileInfo*> *file_list, QObject *parent) :
-	QObject(parent), m_socketDescriptor(sockDescriptor), m_socket(NULL), m_file(NULL), m_totalBytesSent(0),
-	m_uiTimer(NULL), m_speedTimer(NULL), m_runningByteTotal(0), m_runningTimeTotal(0), m_headIndex(0)
+	QObject(parent), m_currentMode(NONE), m_socketDescriptor(sockDescriptor), m_socket(NULL),
+	m_items_sent(0), m_file(NULL), m_fileInfo(NULL), m_totalBytesSent(0), m_sessionTransfered(0),
+	m_uiTimer(NULL), m_uiUpdateInterval(500), m_speedTimer(NULL), m_runningByteTotal(0),
+	m_runningTimeTotal(0), m_headIndex(0)
 {
 	m_fileList = file_list;
+
+	for(int i = 0; i < DOWNLOADRATE_HISTORY_SIZE; i++)
+	{
+		m_byteHistory[i] = 0;
+		m_timeHistory[i] = 0;
+	}
 }
 ServerObject::~ServerObject()
 {
@@ -16,7 +24,7 @@ ServerObject::~ServerObject()
 	{
 		m_socket->disconnect();
 		m_socket->close();
-		delete m_socket;
+		m_socket->deleteLater();
 	}
 
 	if(m_file)
@@ -27,6 +35,41 @@ ServerObject::~ServerObject()
 
 	if(m_speedTimer) delete m_speedTimer;
 	if(m_uiTimer) delete m_uiTimer;
+}
+
+double ServerObject::getCurrentSpeed()
+{
+	return getSpeed();
+}
+
+int ServerObject::getTimeDownloading()
+{
+	if(!m_avgTimer)
+		return 0;
+
+	return m_avgTimer->elapsed();
+}
+
+int ServerObject::getTimeRemaining()
+{
+	return (int)(((m_fileInfo->getSize()-m_totalBytesSent)/1024.0)/getSpeed()*1000);
+}
+
+bool ServerObject::setUpdateInterval(int ms)
+{
+	if(ms < 100)
+		return false;
+
+	m_uiUpdateInterval = ms;
+
+	if(m_uiTimer)
+	{
+		if(m_uiTimer->isActive())
+		{
+			m_uiTimer->setInterval(ms);
+		}
+	}
+	return true;
 }
 
 void ServerObject::handleConnection()
@@ -47,11 +90,21 @@ void ServerObject::handleConnection()
 
 void ServerObject::cleanupRequest()
 {
-	m_socket->disconnect();
-	m_uiTimer->disconnect();
+	if(m_socket)
+	{
+		m_socket->disconnect();
+		m_socket->close();
+	}
+	if(m_uiTimer)
+	{
+		m_uiTimer->disconnect();
+		m_uiTimer->stop();
+	}
+	if(m_file)
+	{
+		m_file->close();
+	}
 
-	m_socket->close();
-	m_uiTimer->stop();
 	this->disconnect();
 }
 
@@ -113,7 +166,7 @@ void ServerObject::sendNextFilePiece(qint64 bytes)
 
 	m_totalBytesSent += bytes;
 
-	if(m_socket->bytesToWrite() > 2*FILE_CHUNK_SIZE
+	if(m_socket->bytesToWrite() > FILE_CHUNK_SIZE
 			|| m_file->atEnd())
 		return;
 
@@ -208,7 +261,7 @@ void ServerObject::fileRequest(connControlMsg msg)
 				m_speedTimer->restart();
 				m_uiTimer = new QTimer(0);
 				connect(m_uiTimer, SIGNAL(timeout()), this, SLOT(triggerUIupdate()));
-				m_uiTimer->start(750);
+				m_uiTimer->start(m_uiUpdateInterval);
 			}
 		}
 	}

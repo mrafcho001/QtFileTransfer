@@ -14,7 +14,8 @@ SOURCES += main.cpp\
         mainwindow.cpp \
     ../fileinfo.cpp \
     filelistitemmodel.cpp \
-    downloadclient.cpp
+    downloadclient.cpp \
+    ../uibundle.cpp
 
 HEADERS  += mainwindow.h \
     filelistitemmodel.h \

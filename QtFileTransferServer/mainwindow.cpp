@@ -10,67 +10,50 @@
 #include <QFrame>
 #include <QCloseEvent>
 
-ServerUIBundle::ServerUIBundle()
+ServerUIBundle::ServerUIBundle() :
+	UIBundle()
 {
-	bar = NULL;
-	label = NULL;
 	file = NULL;
 	server = NULL;
 }
 
-ServerUIBundle::ServerUIBundle(FileInfo *file, QString &ip, ServerObject *serverObj, QWidget *parent)
+ServerUIBundle::ServerUIBundle(FileInfo *file, QString &ip, ServerObject *serverObj, QWidget *parent) :
+	UIBundle(parent)
 {
 	this->file = file;
 	server = serverObj;
-	label = new QLabel(file->getName().append(" -> ").append(ip).append(" @ "), parent);
-	bar = new QProgressBar(parent);
-	bar->setMaximum(file->getSize());
-	bar->setValue(0);
-	bar->setTextVisible(true);
 
-	hLine = new QFrame(parent);
-	hLine->setFrameShape(QFrame::HLine);
+	lblFilName->setText(file->getName());
+	pbProgress->setMaximum(file->getSize());
 }
 
 ServerUIBundle::~ServerUIBundle()
 {
-	if(bar) delete bar;
-	if(label) delete label;
-	if(hLine) delete hLine;
 }
 
-void ServerUIBundle::insertIntoLayout(int reverse_index, QVBoxLayout *layout)
-{
-	layout->insertWidget(layout->count()-reverse_index, label);
-	layout->insertWidget(layout->count()-reverse_index, bar);
-	layout->insertWidget(layout->count()-reverse_index, hLine);
-}
-
-
-void ServerUIBundle::removeFromLayout(QVBoxLayout *layout)
-{
-	layout->removeWidget(label);
-	layout->removeWidget(bar);
-	layout->removeWidget(hLine);
-}
-
+// Will take some work
 void ServerUIBundle::update(qint64 value, double speed)
 {
+	UIBundle::update(value, speed, 0, 0);
+	/*
 	bar->setValue(value);
 	QString str = label->text();
 	str.truncate(str.lastIndexOf(QChar('@'))+2);
 	str.append(QString::number(speed));
 	label->setText(str);
-}
-
-void ServerUIBundle::setCompleted()
-{
-	label->setText(file->getName().append(" Completed!"));
+	*/
 }
 
 void ServerUIBundle::setAborted()
 {
-	label->setText(file->getName().append(" Aborted!!"));
+	UIBundle::setAborted();
+	//pbAction->connect(pbAction, SIGNAL(clicked()), client, SLOT(resumeFileTransfer()));
+}
+
+void ServerUIBundle::setResumed()
+{
+	UIBundle::setResumed();
+	//pbAction->connect(pbAction, SIGNAL(clicked()), client, SLOT(resumeFileTransfer()));
 }
 
 MainWindow::MainWindow(QWidget *parent) :

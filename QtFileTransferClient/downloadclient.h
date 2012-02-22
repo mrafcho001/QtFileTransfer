@@ -26,8 +26,8 @@ public:
 	bool setUpdateInterval(int ms);
 
 	double getCurrentSpeed();
-	int timeDownloading(); // in ms
-	int timeRemaining();	// in ms
+	int getTimeDownloading(); // in ms
+	int getTimeRemaining();	// in ms
 	
 signals:
 
@@ -44,6 +44,8 @@ public slots:
 	void beginDownload();
 	void abortFileTransfer();
 	void resumeFileTransfer();
+
+	void cleanupRequest();
 
 private slots:
 	void connectedHandle();
@@ -80,7 +82,8 @@ private:
 	QFile *m_outFile;
 	FileInfo *m_fileInfo;
 
-	qint64 m_bytesDownloaded;
+	qint64 m_bytePosition;
+	qint64 m_sessionDownloaded;
 
 
 	QTimer *m_uiTimer;

@@ -7,8 +7,8 @@
 #include "../sharedstructures.h"
 
 DownloadClient::DownloadClient(QObject *parent) :
-	QObject(parent), m_currentMode(SETUP), m_socket(NULL), m_outFile(NULL), m_fileInfo(NULL), m_bytesDownloaded(0),
-	m_uiTimer(NULL), m_uiUpdateInterval(750), m_speedTimer(NULL), m_avgTimer(NULL),
+	QObject(parent), m_currentMode(SETUP), m_socket(NULL), m_outFile(NULL), m_fileInfo(NULL), m_bytePosition(0),
+	m_sessionDownloaded(0),	m_uiTimer(NULL), m_uiUpdateInterval(750), m_speedTimer(NULL), m_avgTimer(NULL),
 	m_runningByteTotal(0), m_runningTimeTotal(0), m_headIndex(0)
 {
 	for(int i = 0; i < DOWNLOADRATE_HISTORY_SIZE; i++)
@@ -19,8 +19,8 @@ DownloadClient::DownloadClient(QObject *parent) :
 }
 
 DownloadClient::DownloadClient(FileInfo *fileInfo, QObject *parent) :
-	QObject(parent), m_currentMode(SETUP), m_socket(NULL), m_outFile(NULL), m_bytesDownloaded(0),
-	m_uiTimer(NULL), m_uiUpdateInterval(750), m_speedTimer(NULL), m_avgTimer(NULL),
+	QObject(parent), m_currentMode(SETUP), m_socket(NULL), m_outFile(NULL), m_bytePosition(0),
+	m_sessionDownloaded(0), m_uiTimer(NULL), m_uiUpdateInterval(750), m_speedTimer(NULL), m_avgTimer(NULL),
 	m_runningByteTotal(0), m_runningTimeTotal(0), m_headIndex(0)
 {
 	m_fileInfo = new FileInfo(*fileInfo);
@@ -72,7 +72,7 @@ bool DownloadClient::setSaveDirectory(QString &dir)
 bool DownloadClient::setUpdateInterval(int ms)
 {
 	if(ms < 100)
-		ms = 100;
+		return false;
 
 	m_uiUpdateInterval = ms;
 
@@ -83,6 +83,7 @@ bool DownloadClient::setUpdateInterval(int ms)
 			m_uiTimer->setInterval(ms);
 		}
 	}
+	return true;
 }
 
 double DownloadClient::getCurrentSpeed()
@@ -90,7 +91,7 @@ double DownloadClient::getCurrentSpeed()
 	return getSpeed();
 }
 
-int DownloadClient::timeDownloading() // in ms
+int DownloadClient::getTimeDownloading() // in ms
 {
 	if(!m_avgTimer)
 		return 0;
@@ -98,15 +99,13 @@ int DownloadClient::timeDownloading() // in ms
 	return m_avgTimer->elapsed();
 }
 
-int DownloadClient::timeRemaining()	// in ms
+int DownloadClient::getTimeRemaining()	// in ms
 {
-	return (int)(((m_fileInfo->getSize()-m_bytesDownloaded)/1024.0)/getSpeed()*1000);
+	return (int)(((m_fileInfo->getSize()-m_bytePosition)/1024.0)/getSpeed()*1000);
 }
 
 void DownloadClient::beginDownload()
 {
-	m_bytesDownloaded = 0;
-
 	if(!checkInit())
 		return;
 
@@ -117,18 +116,38 @@ void DownloadClient::abortFileTransfer()
 {
 	m_currentMode = ABORTED;
 	m_socket->close();
-	emit fileTransferAborted(m_bytesDownloaded, this);
+	emit fileTransferAborted(m_bytePosition, this);
 }
 
 void DownloadClient::resumeFileTransfer()
 {
 	//qDebug() << "Resuming File Download";
 
+	m_sessionDownloaded = 0;
 	if(!checkInit())
 		return;
 
 	connectSocket();
 	emit fileTransferResumed(this);
+}
+void DownloadClient::cleanupRequest()
+{
+	if(m_socket)
+	{
+		m_socket->disconnect();
+		m_socket->close();
+	}
+	if(m_uiTimer)
+	{
+		m_uiTimer->disconnect();
+		m_uiTimer->stop();
+	}
+	if(m_outFile)
+	{
+		m_outFile->close();
+	}
+
+	this->disconnect();
 }
 
 void DownloadClient::connectedHandle()
@@ -141,7 +160,7 @@ void DownloadClient::connectedHandle()
 
 	connControlMsg msg;
 	msg.message = (m_currentMode==ABORTED) ? REQUEST_PARTIAL_FILE : REQUEST_FILE_DOWNLOAD;
-	msg.pos = m_bytesDownloaded;
+	msg.pos = m_bytePosition;
 	memcpy(msg.sha1_id, m_fileInfo->getHash().constData(), SHA1_BYTECOUNT);
 
 	m_currentMode = REQUEST_PENDING;
@@ -181,7 +200,7 @@ void DownloadClient::responseHandle()
 
 	if(!m_uiTimer) m_uiTimer = new QTimer();
 	connect(m_uiTimer, SIGNAL(timeout()), this, SLOT(triggerUIupdate()));
-	m_uiTimer->start(750);
+	m_uiTimer->start(m_uiUpdateInterval);
 
 	if(!m_speedTimer) m_speedTimer = new QTime();
 	m_speedTimer->restart();
@@ -189,7 +208,7 @@ void DownloadClient::responseHandle()
 	if(!m_avgTimer) m_avgTimer = new QTime();
 	m_avgTimer->restart();
 
-	if(m_bytesDownloaded == 0)
+	if(m_bytePosition == 0)
 		emit fileTransferBeginning(m_fileInfo, this);
 }
 
@@ -200,9 +219,10 @@ void DownloadClient::dataReceive()
 	updateSpeed(bytesWriten, m_speedTimer->elapsed());
 	m_speedTimer->restart();
 
-	m_bytesDownloaded += bytesWriten;
+	m_bytePosition += bytesWriten;
+	m_sessionDownloaded += bytesWriten;
 
-	if(m_bytesDownloaded >= m_fileInfo->getSize())
+	if(m_bytePosition >= m_fileInfo->getSize())
 		completeAndClose();
 }
 
@@ -219,7 +239,7 @@ void DownloadClient::disconnectedHandle()
 	if(m_socket)  m_socket->deleteLater();
 
 	if(m_currentMode != ABORTED
-			&& m_bytesDownloaded == m_fileInfo->getSize())
+			&& m_bytePosition == m_fileInfo->getSize())
 	{
 		emit finished();
 	}
@@ -291,7 +311,7 @@ bool DownloadClient::checkInit()
 		return false;
 	}
 
-	if(!initFileForWriting(m_bytesDownloaded))
+	if(!initFileForWriting(m_bytePosition))
 	{
 		qCritical() << "Could not create file for writing. Action canceled.";
 		return false;
@@ -303,7 +323,7 @@ bool DownloadClient::completeAndClose()
 {
 	m_total_time = m_avgTimer->elapsed();
 
-	emit fileTransferUpdate(m_bytesDownloaded, (m_bytesDownloaded/1024.0)/(m_total_time/1000.0), this);
+	emit fileTransferUpdate(m_bytePosition, (m_sessionDownloaded/1024.0)/(m_total_time/1000.0), this);
 	m_outFile->close();
 	emit fileTransferComplete(this);
 
@@ -338,5 +358,5 @@ double DownloadClient::getSpeed()
 
 void DownloadClient::triggerUIupdate()
 {
-	emit fileTransferUpdate(m_bytesDownloaded, getSpeed(), this);
+	emit fileTransferUpdate(m_bytePosition, getSpeed(), this);
 }

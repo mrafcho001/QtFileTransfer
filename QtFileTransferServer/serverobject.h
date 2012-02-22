@@ -17,15 +17,22 @@ class ServerObject : public QObject
 public:
 	ServerObject(int socketDescriptor, QList<FileInfo*> *file_list, QObject *parent = 0);
 	~ServerObject();
+
+
+	double getCurrentSpeed();
+	int getTimeDownloading(); // in ms
+	int getTimeRemaining();	// in ms
+	bool setUpdateInterval(int ms);
 	
 signals:
 	void error(QTcpSocket::SocketError socketError);
 	void finished();
 
-	void fileTransferBeginning(FileInfo *file, ServerObject *obj, QString ip);
-	void fileTransferUpdated(qint64 bytes_sent, double speed, ServerObject *obj);
-	void fileTransferCompleted(ServerObject *obj);
-	void fileTransferAborted(ServerObject *obj);
+	void fileTransferBeginning(FileInfo *file, ServerObject *so, QString ip);
+	void fileTransferUpdated(qint64 bytes_sent, double speed, ServerObject *so);
+	void fileTransferCompleted(ServerObject *so);
+	void fileTransferAborted(ServerObject *so);
+	void fileTransferResumed(ServerObject *so);
 
 	void fileListRequested();
 	void fileListTransferCompleted();
@@ -66,10 +73,13 @@ private:
 	QFile *m_file;
 	FileInfo *m_fileInfo;
 	qint64 m_totalBytesSent;
+	qint64 m_sessionTransfered;
 
 	QTimer *m_uiTimer;
+	unsigned int m_uiUpdateInterval;
 
 	QTime *m_speedTimer;
+	QTime *m_avgTimer;
 	int m_runningByteTotal;
 	int m_runningTimeTotal;
 	int m_byteHistory[DOWNLOADRATE_HISTORY_SIZE];

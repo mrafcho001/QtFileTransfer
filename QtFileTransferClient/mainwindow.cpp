@@ -17,128 +17,42 @@
 #include <QCloseEvent>
 #include <QGridLayout>
 
-ClientUIBundle::ClientUIBundle():
-	layout(NULL), pbProgress(NULL), lblFilName(NULL), lblSpeed(NULL), hLine(NULL),
-	pbAction(NULL), file(NULL), client(NULL)
+ClientUIBundle::ClientUIBundle() : UIBundle()
 {
 }
 
 ClientUIBundle::ClientUIBundle(FileInfo* file, DownloadClient *clientObj,
-												 QWidget *parent)
+												 QWidget *parent) :
+	UIBundle(parent)
 {
 	this->file = file;
 	client = clientObj;
 
-	layout = new QGridLayout(0);
-
-
-	lblFilName = new QLabel(file->getName(), parent);
-	layout->addWidget(lblFilName, 0, 0, 1, 3);
-
-	pbProgress = new QProgressBar(parent);
+	lblFilName->setText(file->getName());
 	pbProgress->setMaximum(file->getSize());
-	pbProgress->setValue(0);
-	pbProgress->setTextVisible(true);
-	layout->addWidget(pbProgress, 1, 0, 1, 3);
-
-	pbAction = new QToolButton(parent);
-	pbAction->setIcon(QIcon(QString(":/icons/stop.png")));
-	layout->addWidget(pbAction, 1, 3);
 	pbAction->connect(pbAction, SIGNAL(clicked()), clientObj, SLOT(abortFileTransfer()));
-
-	lblSpeed = new QLabel("Speed: 0 Kb/s");
-	layout->addWidget(lblSpeed, 2, 0);
-
-	lblTimeRemaining = new QLabel("Time Remaining: 00:00:00", parent);
-	layout->addWidget(lblTimeRemaining, 2, 1);
-
-	lblTimeDownloading = new QLabel("Time Downloading: 00:00:00", parent);
-	layout->addWidget(lblTimeDownloading, 2, 2);
-
-	hLine = new QFrame(parent);
-	hLine->setFrameShape(QFrame::HLine);
-	layout->addWidget(hLine, 3, 0, 1, 3);
 }
 
 ClientUIBundle::~ClientUIBundle()
 {
-	clearLayout(layout);
-	delete layout;
-}
-
-void ClientUIBundle::insertIntoLayout(int reverse_index, QVBoxLayout *parentLayout)
-{
-	parentLayout->insertLayout(parentLayout->count()-reverse_index, this->layout);//->insertLayout(layout->count()-reverse_index, this->layout);
-}
-
-void ClientUIBundle::removeFromLayout(QVBoxLayout *parentLayout)
-{
-	parentLayout->removeItem(this->layout);
 }
 
 void ClientUIBundle::update(qint64 value, double speed)
 {
-	pbProgress->setValue(value);
-	lblSpeed->setText(QString("Speed: %1 Kb/s").arg(speed, 0, 'f', 2));
-	int ms = client->timeDownloading();
-
-	lblTimeDownloading->setText(QString("Time Downloading: %1:%2:%3").arg(MS_TO_H(ms)).arg(MS_TO_M(ms)).arg(MS_TO_S(ms)));
-
-	ms = client->timeRemaining();
-
-	lblTimeRemaining->setText(QString("Time Remaining: %1:%2:%3").arg(MS_TO_H(ms)).arg(MS_TO_M(ms)).arg(MS_TO_S(ms)));
-}
-
-void ClientUIBundle::setFinished()
-{
-	layout->removeWidget(pbAction);
-	delete pbAction;
-	pbProgress->setValue(pbProgress->maximum());
-	lblSpeed->setText(lblSpeed->text().replace("Speed", "Avg Speed"));
+	UIBundle::update(value, speed, client->getTimeDownloading(), client->getTimeRemaining());
 }
 
 void ClientUIBundle::setAborted()
 {
-	pbAction->setIcon(QIcon(":/icons/restart.png"));
-	pbAction->disconnect();
+	UIBundle::setAborted();
 	pbAction->connect(pbAction, SIGNAL(clicked()), client, SLOT(resumeFileTransfer()));
-	lblSpeed->setText(QString("Download Aborted"));
 }
 
 
 void ClientUIBundle::setResumed()
 {
-	pbAction->setIcon(QIcon(":/icons/stop.png"));
-	pbAction->disconnect();
+	UIBundle::setResumed();
 	pbAction->connect(pbAction, SIGNAL(clicked()), client, SLOT(abortFileTransfer()));
-	lblSpeed->setText(QString("Download Resuming..."));
-}
-
-
-QToolButton* ClientUIBundle::getActionButton()
-{
-	return pbAction;
-}
-
-void ClientUIBundle::clearLayout(QLayout *layout)
-{
-	QLayoutItem *item;
-	while((item = layout->takeAt(0)))
-	{
-		if(item->layout())
-		{
-			clearLayout(item->layout());
-			delete item->layout();
-		}
-		else if(item->widget())
-		{
-			delete item->widget();
-		}
-		else if(item->spacerItem())
-		{
-			delete item->spacerItem();
-		}
-	}
 }
 
 MainWindow::MainWindow(QWidget *parent) :

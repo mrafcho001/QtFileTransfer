@@ -14,6 +14,7 @@
 #include <QVBoxLayout>
 #include <QLabel>
 #include <QThread>
+#include "../uibundle.h"
 
 namespace Ui {
 class MainWindow;
@@ -21,28 +22,21 @@ class MainWindow;
 
 
 //Forward declarations
-class QProgressBar;
-class QFrame;
 class QThread;
 
-class ServerUIBundle
+class ServerUIBundle : public UIBundle
 {
 public:
 	ServerUIBundle();
 	ServerUIBundle(FileInfo* file, QString &ip, ServerObject *serverObj, QWidget *parent);
 	~ServerUIBundle();
 
-	void insertIntoLayout(int reverse_index, QVBoxLayout *layout);
-	void removeFromLayout(QVBoxLayout *layout);
 	void update(qint64 value, double speed);
 
-	void setCompleted();
 	void setAborted();
+	void setResumed();
 
 private:
-	QProgressBar *bar;
-	QLabel *label;
-	QFrame *hLine;
 
 	FileInfo *file;
 	ServerObject *server;

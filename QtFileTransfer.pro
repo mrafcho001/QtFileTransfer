@@ -6,7 +6,9 @@ SUBDIRS += \
 	QtFileTransferClient
 
 SOURCES = sharedstructures.cpp \
-	fileinfo.cpp
+	fileinfo.cpp \
+	uibundle.cpp
 
 HEADERS = sharedstructures.h \
-	fileinfo.h
+	fileinfo.h \
+	uibundle.h
