@@ -28,3 +28,7 @@ FORMS    += \
 
 RESOURCES += \
     resources.qrc
+
+OTHER_FILES += \
+    resources/restart.png \
+    resources/stop.png
