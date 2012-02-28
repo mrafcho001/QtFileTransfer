@@ -5,9 +5,7 @@
 #include <QDebug>
 #include <QThread>
 #include <QFileDialog>
-#include <QProgressBar>
 #include <QTimer>
-#include <QFrame>
 #include <QCloseEvent>
 
 ServerUIBundle::ServerUIBundle() :
@@ -23,37 +21,25 @@ ServerUIBundle::ServerUIBundle(FileInfo *file, QString &ip, ServerObject *server
 	this->file = file;
 	server = serverObj;
 
-	lblFilName->setText(file->getName());
+	lblFilName->setText(file->getName().append(" -> ").append(ip));
 	pbProgress->setMaximum(file->getSize());
+	pbAction->connect(pbAction, SIGNAL(clicked()), server, SLOT(abortFileTransfer()));
 }
 
 ServerUIBundle::~ServerUIBundle()
 {
 }
 
-// Will take some work
 void ServerUIBundle::update(qint64 value, double speed)
 {
-	UIBundle::update(value, speed, 0, 0);
-	/*
-	bar->setValue(value);
-	QString str = label->text();
-	str.truncate(str.lastIndexOf(QChar('@'))+2);
-	str.append(QString::number(speed));
-	label->setText(str);
-	*/
+	UIBundle::update(value, speed, server->getTimeDownloading(), server->getTimeRemaining());
 }
 
 void ServerUIBundle::setAborted()
 {
 	UIBundle::setAborted();
-	//pbAction->connect(pbAction, SIGNAL(clicked()), client, SLOT(resumeFileTransfer()));
-}
-
-void ServerUIBundle::setResumed()
-{
-	UIBundle::setResumed();
-	//pbAction->connect(pbAction, SIGNAL(clicked()), client, SLOT(resumeFileTransfer()));
+	layout->removeWidget(pbAction);
+	delete pbAction;
 }
 
 MainWindow::MainWindow(QWidget *parent) :
@@ -169,8 +155,8 @@ void MainWindow::fileTransferInitiated(FileInfo *file, ServerObject *obj, QStrin
 
 	ServerWorkerBundle *worker = workerHash.value(obj);
 
-	worker->progressBar = new ServerUIBundle(file, peer_ip, obj, this);
-	worker->progressBar->insertIntoLayout(1, ui->vlProgressBarLayout);
+	worker->ui = new ServerUIBundle(file, peer_ip, obj, this);
+	worker->ui->insertIntoLayout(1, ui->vlProgressBarLayout);
 }
 
 void MainWindow::fileTransferUpdate(qint64 bytes, double speed, ServerObject *obj)
@@ -178,7 +164,7 @@ void MainWindow::fileTransferUpdate(qint64 bytes, double speed, ServerObject *ob
 	if(!workerHash.contains(obj))
 		return;
 
-	workerHash.value(obj)->progressBar->update(bytes,speed);
+	workerHash.value(obj)->ui->update(bytes,speed);
 }
 
 void MainWindow::fileTransferCompleted(ServerObject *obj)
@@ -194,14 +180,14 @@ void MainWindow::fileTransferAborted(ServerObject *obj)
 	if(!workerHash.contains(obj))
 		return;
 
-	workerHash.value(obj)->progressBar->setAborted();
+	workerHash.value(obj)->ui->setAborted();
 	fileTransferCompleted(obj);
 }
 
 void MainWindow::removeFileTransferUI()
 {
 	ServerWorkerBundle *worker = toRemove.dequeue();
-	worker->progressBar->removeFromLayout(ui->vlProgressBarLayout);
+	worker->ui->removeFromLayout(ui->vlProgressBarLayout);
 	worker->thread->disconnect();
 
 	delete worker;

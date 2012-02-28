@@ -40,6 +40,7 @@ signals:
 public slots:
 	void handleConnection();
 	void cleanupRequest();
+	void abortFileTransfer();
 
 private slots:
 	void readReady();

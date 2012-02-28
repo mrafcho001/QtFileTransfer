@@ -34,7 +34,6 @@ public:
 	void update(qint64 value, double speed);
 
 	void setAborted();
-	void setResumed();
 
 private:
 
@@ -45,19 +44,24 @@ private:
 class ServerWorkerBundle
 {
 public:
-	ServerWorkerBundle() : thread(NULL), servObj(NULL), progressBar(NULL)
+	ServerWorkerBundle() : thread(NULL), servObj(NULL), ui(NULL)
 	{
 	}
 	~ServerWorkerBundle()
 	{
-		if(thread) delete thread;
+		if(ui) delete ui;
+		if(thread)
+		{
+			thread->quit();
+			thread->wait();
+		}
 		if(servObj) delete servObj;
-		if(progressBar) delete progressBar;
+		if(thread)delete thread;
 	}
 
 	QThread *thread;
 	ServerObject *servObj;
-	ServerUIBundle *progressBar;
+	ServerUIBundle *ui;
 };
 
 class MainWindow : public QMainWindow

@@ -1,16 +1,13 @@
 #ifndef UIBUNDLE_H
 #define UIBUNDLE_H
 #include <QtGlobal>
-//#include <QWidget>
-
-class QProgressBar;
-class QLabel;
-class QVBoxLayout;
-class QFrame;
-class QGridLayout;
-class QToolButton;
-class QWidget;
-class QLayout;
+#include <QToolButton>
+#include <QProgressBar>
+#include <QLabel>
+#include <QGridLayout>
+#include <QFrame>
+#include <QVBoxLayout>
+//#include <QLayout>
 
 class UIBundle
 {

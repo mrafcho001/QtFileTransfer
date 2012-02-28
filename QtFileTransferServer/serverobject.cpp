@@ -7,7 +7,7 @@
 ServerObject::ServerObject(int sockDescriptor, QList<FileInfo*> *file_list, QObject *parent) :
 	QObject(parent), m_currentMode(NONE), m_socketDescriptor(sockDescriptor), m_socket(NULL),
 	m_items_sent(0), m_file(NULL), m_fileInfo(NULL), m_totalBytesSent(0), m_sessionTransfered(0),
-	m_uiTimer(NULL), m_uiUpdateInterval(500), m_speedTimer(NULL), m_runningByteTotal(0),
+	m_uiTimer(NULL), m_uiUpdateInterval(500), m_speedTimer(NULL), m_avgTimer(NULL), m_runningByteTotal(0),
 	m_runningTimeTotal(0), m_headIndex(0)
 {
 	m_fileList = file_list;
@@ -34,6 +34,7 @@ ServerObject::~ServerObject()
 	}
 
 	if(m_speedTimer) delete m_speedTimer;
+	if(m_avgTimer) delete m_avgTimer;
 	if(m_uiTimer) delete m_uiTimer;
 }
 
@@ -107,6 +108,12 @@ void ServerObject::cleanupRequest()
 
 	this->disconnect();
 }
+
+void ServerObject::abortFileTransfer()
+{
+	m_socket->close();
+}
+
 
 void ServerObject::readReady()
 {
@@ -259,6 +266,8 @@ void ServerObject::fileRequest(connControlMsg msg)
 				emit fileTransferBeginning(m_fileInfo, this, m_socket->peerAddress().toString());
 				m_speedTimer = new QTime();
 				m_speedTimer->restart();
+				m_avgTimer = new QTime();
+				m_avgTimer->restart();
 				m_uiTimer = new QTimer(0);
 				connect(m_uiTimer, SIGNAL(timeout()), this, SLOT(triggerUIupdate()));
 				m_uiTimer->start(m_uiUpdateInterval);
