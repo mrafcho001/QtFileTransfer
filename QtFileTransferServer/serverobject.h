@@ -87,8 +87,6 @@ private:
 	int m_timeHistory[DOWNLOADRATE_HISTORY_SIZE];
 	int m_headIndex;
 
-
-	
 };
 
 #endif // SERVERTHREAD_H

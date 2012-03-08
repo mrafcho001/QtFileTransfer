@@ -91,6 +91,8 @@ public slots:
 	void removeFileTransferUI();
     
 private:
+	void setForRemoval(ServerObject *obj);
+
     Ui::MainWindow *ui;
 	MyTcpServer *server;
 

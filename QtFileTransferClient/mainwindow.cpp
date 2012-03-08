@@ -218,6 +218,7 @@ void MainWindow::sock_connected()
 
 void MainWindow::sock_error(QAbstractSocket::SocketError err)
 {
+	qDebug() << "SOCKET ERROR: " << err;
 	if(err == QAbstractSocket::ConnectionRefusedError)
 	{
 		QMessageBox::warning(this, tr("Connection Failed"),
@@ -236,7 +237,6 @@ void MainWindow::sock_error(QAbstractSocket::SocketError err)
 
 void MainWindow::sock_disconn()
 {
-	//qDebug() << "No loose ends..";
 	disconnect(m_socket, 0,0,0);
 	m_socket->deleteLater();
 }
@@ -256,6 +256,8 @@ void MainWindow::onListReceiveData()
 		}
 		//qDebug() << "Received ACK";
 		list_ack_receieved = true;
+		m_items_received = 0;
+		m_items_total = msg.list_size;
 	}
 
 	unsigned int size;
@@ -278,7 +280,14 @@ void MainWindow::onListReceiveData()
 		fi->setFromByteArray(buff);
 
 		this->tableModel->insertRowWithData(fi);
+		m_items_received++;
 		delete [] buff;
+	}
+
+	if(m_items_received == m_items_total)
+	{
+		qDebug() << "Closing...";
+		m_socket->close();
 	}
 }
 

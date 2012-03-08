@@ -48,6 +48,7 @@ struct connControlMsg
 {
 	ConnectionControl message;
 	unsigned long long pos;
+	unsigned int list_size;
 	char sha1_id[SHA1_BYTECOUNT];
 };
 

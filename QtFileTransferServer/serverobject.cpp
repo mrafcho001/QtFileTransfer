@@ -156,11 +156,8 @@ void ServerObject::readReady()
 void ServerObject::sendNextListItem(qint64 bytes)
 {
 	(void)bytes;
-	if(m_fileList->count() == m_items_sent)
-	{
-		m_socket->close();
+	if(m_fileList->count() == m_items_sent || m_socket->bytesToWrite() > 100000)
 		return;
-	}
 
 	m_socket->write(m_fileList->at(m_items_sent)->getByteArray());
 	m_items_sent++;
@@ -182,6 +179,7 @@ void ServerObject::sendNextFilePiece(qint64 bytes)
 
 void ServerObject::disconnected()
 {
+	qDebug() << "Disconnected";
 	m_socket->disconnect();
 	if(m_file)
 	{
@@ -220,7 +218,11 @@ void ServerObject::listRequest()
 	m_currentMode = SENDING_LIST;
 	m_items_sent = 0;
 	if(m_fileList != NULL && m_fileList->count() > 0)
+	{
 		response.message = LIST_REQUEST_GRANTED;
+		response.list_size = m_fileList->count();
+		qDebug() << "List size: " << response.list_size;
+	}
 	else
 		response.message = LIST_REQUEST_EMPTY;
 

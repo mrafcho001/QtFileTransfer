@@ -106,6 +106,8 @@ private:
 	qint64 rec_bytes;
 
 	bool list_ack_receieved;
+	int m_items_received;
+	int m_items_total;
 
 	QHash<DownloadClient*,DownloadWorkerBundle*> workerHash;
 	QQueue<DownloadWorkerBundle*> toRemove;

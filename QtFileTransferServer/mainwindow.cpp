@@ -161,27 +161,19 @@ void MainWindow::fileTransferInitiated(FileInfo *file, ServerObject *obj, QStrin
 
 void MainWindow::fileTransferUpdate(qint64 bytes, double speed, ServerObject *obj)
 {
-	if(!workerHash.contains(obj))
-		return;
-
 	workerHash.value(obj)->ui->update(bytes,speed);
 }
 
 void MainWindow::fileTransferCompleted(ServerObject *obj)
 {
-	toRemove.enqueue(workerHash.value(obj));
-	workerHash.remove(obj);
-
-	QTimer::singleShot(10000, this, SLOT(removeFileTransferUI()));
+	workerHash.value(obj)->ui->setFinished();
+	setForRemoval(obj);
 }
 
 void MainWindow::fileTransferAborted(ServerObject *obj)
 {
-	if(!workerHash.contains(obj))
-		return;
-
 	workerHash.value(obj)->ui->setAborted();
-	fileTransferCompleted(obj);
+	setForRemoval(obj);
 }
 
 void MainWindow::removeFileTransferUI()
@@ -225,4 +217,12 @@ void MainWindow::newConnection(int socketDescriptor)
 	connect(this, SIGNAL(stopAllThreads()), worker->servObj, SLOT(cleanupRequest()));
 
 	worker->thread->start();
+}
+
+void MainWindow::setForRemoval(ServerObject *obj)
+{
+	toRemove.enqueue(workerHash.value(obj));
+	workerHash.remove(obj);
+
+	QTimer::singleShot(10000, this, SLOT(removeFileTransferUI()));
 }
